@@ -56,3 +56,29 @@ pm-roadmap-app/
 - Jira integration is opt-in per task, not automatic
 - Mobile view should use simplified timeline, not full Gantt
 - Issue types limited to: Story, Improvement, Bug, Mockup
+## Domo CLI Commands
+
+### Login
+```bash
+domo login -i domo-demo.domo.com
+```
+
+### Local Development
+```bash
+domo dev
+```
+
+### Publish to Domo
+```bash
+domo publish
+```
+ 
+### List Apps
+```bash
+domo ls
+```
+ 
+### Download Existing App
+```bash
+domo download
+```
