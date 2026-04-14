@@ -16,9 +16,9 @@ across platforms.
 
 ## 3. Target Users
 - Product Managers
-- UX Designers
 - Program Managers
 - Engineering Leads
+- UX Designers
 - Stakeholders who need roadmap visibility
 
 ## 4. Goals & Success Metrics
@@ -92,11 +92,13 @@ across platforms.
 |----|------------|----------|
 | JR-1 | Tasks are NOT 1:1 with Jira tickets | High |
 | JR-2 | Per-task Jira Tickets panel (add 0, 1, or many) | High |
-| JR-3 | Issue type selector: Story, Improvement, Bug, Mockup | High |
-| JR-4 | Jira project picker (auto-discover or manual entry) | Medium |
-| JR-5 | Draft → Push workflow (batch plan, then send) | High |
-| JR-6 | Show Jira key once pushed (e.g., ROAD-42) | High |
-| JR-7 | Project-level "Push X to Jira" button for bulk push | Medium |
+| JR-3 | Issue type selector: Epic, Story, Improvement, Bug, Mock | High |
+| JR-4 | Creating a Project creates an Epic in Jira (DOMO project) | High |
+| JR-5 | Stories/Bugs/Improvements/Mocks link to parent Epic via Epic Link | High |
+| JR-6 | Draft → Push workflow (batch plan, then send) | High |
+| JR-7 | Show Jira key once pushed (e.g., DOMO-482336) | High |
+| JR-8 | Project-level "Push X to Jira" button for bulk push | Medium |
+| JR-9 | Support Jira fields: Squad, Priority, Assignee, PM, Dev Manager, UX Lead, PgM | Low |
 
 ### 6.4 Data Storage (Domo AppDB)
 | ID | Requirement | Priority |
@@ -131,7 +133,10 @@ across platforms.
 | Platform | Domo Custom App (Pro-Code) |
 | Frontend | React (JSX) |
 | Data Storage | Domo AppDB |
-| External Integration | Jira REST API via Domo Proxy |
+| External Integration | Jira REST API v2 via Domo Proxy |
+| Jira Instance | https://onjira.domo.com |
+| Jira Project | DOMO |
+| Auth Method | Personal Access Token (Bearer) |
 | Deployment | Domo CLI |
 | Version Control | GitHub |
 | AI Assistance | Claude (development only) |
@@ -173,6 +178,34 @@ across platforms.
 | jiraProject | string | Target Jira project key |
 | status | string | draft / pushing / synced |
 | createdAt | date | Date created |
+
+## 9.5 Jira Field Mappings
+
+### Custom Fields
+| Field | ID | Used For |
+|-------|-----|----------|
+| Epic Name | `customfield_11001` | Required when creating an Epic |
+| Epic Link | `customfield_11000` | Links Story/Bug/Improvement/Mock to an Epic |
+
+### Issue Type Mapping
+| App Concept | Jira Issue Type |
+|------------|----------------|
+| Project | Epic |
+| Feature/Task | Story (default) |
+| Enhancement | Improvement |
+| Defect | Bug |
+| Design | Mock |
+
+### Jira Workflow
+User creates Project in app
+↓
+App creates Epic in Jira (DOMO project)
+↓
+User creates tasks under project
+↓
+User drafts Jira tickets per task
+↓
+User pushes tickets → Stories/Bugs/etc created under Epic
 
 ## 10. Milestones & Timeline
 - [ ] Phase 1: Project setup, AppDB schema, basic CRUD
