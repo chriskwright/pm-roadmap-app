@@ -52,6 +52,61 @@
     "issuetype": {"name": "Story"},
     "customfield_11000": "DOMO-XXXXXX"
   }
+
+---
+
+## Status Transitions
+
+### All Available Transitions
+| Transition | ID |
+|-----------|-----|
+| Start Progress | 1351 |
+| Resolve Issue | 1361 |
+| Close Issue | 1371 |
+| On Hold | 1261 |
+| Approval Request | 1271 |
+| Approved | 1291 |
+| VP Approval | 1301 |
+| To Do / Concept | 1311 |
+| Reopen Issue | 1321 |
+| Prep | 1331 |
+| UX/Design | 1341 |
+| Pull Request | 1381 |
+| Ready for Dev | 1391 |
+| Blocked | 1401 |
+| QA Planning | 1411 |
+| Triaged | 1421 |
+
+### App → Jira Status Mapping
+| App Status Change | Jira Transition | ID |
+|------------------|----------------|-----|
+| Planned → In Progress | Start Progress | 1351 |
+| In Progress → Done | Resolve Issue | 1361 |
+| Done → Closed | Close Issue | 1371 |
+| Any → Blocked | Blocked | 1401 |
+| Any → Reopen | Reopen Issue | 1321 |
+
+### Jira → App Status Mapping
+| Jira Status | App Status |
+|------------|-----------|
+| Open | Planned |
+| To Do | Planned |
+| In Progress | In Progress |
+| UX/Design | In Progress |
+| Ready for Dev | In Progress |
+| Resolved | Done |
+| Closed | Done |
+| On Hold | Blocked |
+| Blocked | Blocked |
+
+### Example: Transition a Ticket
+```json
+POST /rest/api/2/issue/DOMO-XXXXX/transitions
+{
+  "transition": {
+    "id": "1351"
+  }
+}
 }
 
 ---

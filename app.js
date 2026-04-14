@@ -448,19 +448,23 @@ function renderProjectGroup(project, index) {
           <button class="btn-icon" data-action="delete-project" data-project-id="${project.id}" title="Delete project">&#128465;</button>
         </div>
       </div>
-      <div class="project-body">
-        ${filtered.map(f => renderFeatureCard(f, color)).join('')}
-        <div class="add-feature-card" data-action="add-feature" data-project-id="${project.id}">
-          + Add Feature
+      <div class="project-collapse-body">
+        <div class="project-collapse-inner">
+          <div class="project-body">
+            ${filtered.map(f => renderFeatureCard(f, color)).join('')}
+            <div class="add-feature-card" data-action="add-feature" data-project-id="${project.id}">
+              + Add Feature
+            </div>
+          </div>
+          ${draftCount > 0 ? `
+            <div class="push-all-bar">
+              <span><span class="draft-count">${draftCount}</span> draft ticket${draftCount !== 1 ? 's' : ''} ready to push</span>
+              <button class="btn btn-sm btn-success" data-action="push-all-project" data-project-id="${project.id}">
+                Push All to Jira
+              </button>
+            </div>` : ''}
         </div>
       </div>
-      ${draftCount > 0 ? `
-        <div class="push-all-bar">
-          <span><span class="draft-count">${draftCount}</span> draft ticket${draftCount !== 1 ? 's' : ''} ready to push</span>
-          <button class="btn btn-sm btn-success" data-action="push-all-project" data-project-id="${project.id}">
-            Push All to Jira
-          </button>
-        </div>` : ''}
     </div>`;
 }
 
@@ -1242,12 +1246,14 @@ function bindEvents() {
         break;
       case 'toggle-project':
         const pid = target.dataset.projectId;
+        const group = document.querySelector(`.project-group[data-project-id="${pid}"]`);
         if (state.collapsedProjects.has(pid)) {
           state.collapsedProjects.delete(pid);
+          if (group) group.classList.remove('collapsed');
         } else {
           state.collapsedProjects.add(pid);
+          if (group) group.classList.add('collapsed');
         }
-        render();
         break;
       case 'add-feature':
         openFeatureModal(null, target.dataset.projectId);

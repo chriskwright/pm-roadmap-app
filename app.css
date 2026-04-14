@@ -523,7 +523,7 @@ html, body {
 .project-collapse-icon {
   color: var(--text-muted);
   font-size: 10px;
-  transition: transform var(--transition-normal);
+  transition: transform 350ms cubic-bezier(0.4, 0, 0.2, 1);
   width: 16px;
   text-align: center;
   flex-shrink: 0;
@@ -531,6 +531,29 @@ html, body {
 
 .project-group.collapsed .project-collapse-icon {
   transform: rotate(-90deg);
+}
+
+/* Collapse animation container */
+.project-collapse-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 380ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.project-group.collapsed .project-collapse-body {
+  grid-template-rows: 0fr;
+}
+
+.project-collapse-inner {
+  overflow: hidden;
+  min-height: 0;
+  opacity: 1;
+  transition: opacity 300ms ease 80ms;
+}
+
+.project-group.collapsed .project-collapse-inner {
+  opacity: 0;
+  transition: opacity 200ms ease;
 }
 
 .project-color-dot {
@@ -600,29 +623,27 @@ html, body {
 }
 
 .project-body {
-  padding: 4px 20px 20px;
+  padding: 6px 20px 20px;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
   transition: all var(--transition-normal);
 }
 
-.project-group.collapsed .project-body {
-  display: none;
-}
+/* collapsed state handled by .project-collapse-body grid-template-rows */
 
 .project-body .add-feature-card {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 80px;
+  min-height: 56px;
   border: 1px dashed var(--border-secondary);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   transition: all var(--transition-normal);
-  gap: 6px;
+  gap: 5px;
   background: transparent;
 }
 
@@ -632,15 +653,16 @@ html, body {
   background: rgba(16,185,129,0.04);
 }
 
-/* ===== FEATURE CARD ===== */
+/* ===== FEATURE CARD (compact tile) ===== */
 .feature-card {
   background: #FFFFFF;
   border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
   cursor: pointer;
   transition: all var(--transition-normal);
   position: relative;
+  min-height: 0;
 }
 
 .feature-card:hover {
@@ -651,33 +673,37 @@ html, body {
 
 .feature-card-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 6px;
+  margin-bottom: 6px;
 }
 
 .feature-card-name {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
-  line-height: 1.4;
+  line-height: 1.3;
   flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .feature-card-badges {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   flex-shrink: 0;
 }
 
 .feature-card-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
-  line-height: 1.5;
-  margin-bottom: 12px;
+  line-height: 1.4;
+  margin-bottom: 6px;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -686,16 +712,16 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
 }
 
 .feature-card-dates {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
   font-family: var(--font-mono);
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .feature-card-dates .date-sep {
@@ -725,8 +751,8 @@ html, body {
 .feature-card-priority-line {
   position: absolute;
   left: 0;
-  top: 10px;
-  bottom: 10px;
+  top: 8px;
+  bottom: 8px;
   width: 3px;
   border-radius: 0 2px 2px 0;
 }
@@ -1423,8 +1449,9 @@ html, body {
   }
 
   .project-body {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
     padding: 4px 12px 12px;
+    gap: 6px;
   }
 
   .project-header {
@@ -1433,10 +1460,6 @@ html, body {
 
   .project-progress-wrap {
     display: none;
-  }
-
-  .feature-card {
-    padding: 10px 12px;
   }
 
   /* Gantt mobile: simplified */
@@ -1469,6 +1492,10 @@ html, body {
 @media (max-width: 480px) {
   .view-toggle-btn span { display: none; }
   .view-toggle-btn { padding: 6px 10px; }
+
+  .project-body {
+    grid-template-columns: 1fr;
+  }
 
   :root {
     --gantt-label-width: 100px;
