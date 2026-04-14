@@ -16,7 +16,7 @@ across platforms.
 
 ## 3. Target Users
 - Product Managers
-- UX designers
+- UX Designers
 - Program Managers
 - Engineering Leads
 - Stakeholders who need roadmap visibility
