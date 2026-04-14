@@ -131,10 +131,10 @@ across platforms.
 | Platform | Domo Custom App (Pro-Code) |
 | Frontend | React (JSX) |
 | Data Storage | Domo AppDB |
-| External Integration | Jira (Atlassian API) |
+| External Integration | Jira REST API via Domo Proxy |
 | Deployment | Domo CLI |
 | Version Control | GitHub |
-| AI Assistance | Claude |
+| AI Assistance | Claude (development only) |
 
 ## 9. Data Model (AppDB Collections)
 
