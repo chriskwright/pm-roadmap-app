@@ -634,25 +634,17 @@ function renderProjectGroup(project, index) {
   const isCollapsed = state.collapsedProjects.has(project.id);
   const draftCount = getDraftCountForProject(project.id);
 
+  const epicCount = filtered.filter(f => f.type === 'Epic').length;
+  const otherCount = filtered.filter(f => f.type !== 'Epic' && !f.parentEpicId).length;
+
   return `
     <div class="project-group ${isCollapsed ? 'collapsed' : ''}" data-project-id="${project.id}">
       <div class="project-header" data-action="toggle-project" data-project-id="${project.id}">
         <div class="project-header-top">
-          <span class="project-collapse-icon">&#9660;</span>
+          <span class="project-collapse-icon">${isCollapsed ? '&#9656;' : '&#9662;'}</span>
           <span class="project-color-dot" style="background:${color}"></span>
           <span class="project-name">${Utils.escapeHtml(project.name)}</span>
-          <span class="badge ${Utils.getStatusBadgeClass(project.status)}">${project.status}</span>
-          ${project.squad ? `<span class="project-squad-badge">${Utils.escapeHtml(project.squad)}</span>` : ''}
-          ${project.epicKey ? `<a class="project-epic-badge" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(project.epicKey)}" target="_blank" onclick="event.stopPropagation()">&#9889; ${Utils.escapeHtml(project.epicKey)}</a>` : ''}
-          <span class="project-meta">
-            <span class="project-feature-count">${features.length} item${features.length !== 1 ? 's' : ''}</span>
-          </span>
-          <div class="project-progress-wrap">
-            <div class="progress-bar" style="flex:1">
-              <div class="progress-fill ${pct === 100 ? 'complete' : ''}" style="width:${pct}%"></div>
-            </div>
-            <span class="project-progress-pct">${pct}%</span>
-          </div>
+          <span class="project-status-pill">${project.status}</span>
           <div class="project-header-actions">
             <button class="btn-icon" data-action="move-project-up" data-project-id="${project.id}" title="Move up">&#8593;</button>
             <button class="btn-icon" data-action="move-project-down" data-project-id="${project.id}" title="Move down">&#8595;</button>
@@ -662,6 +654,11 @@ function renderProjectGroup(project, index) {
           </div>
         </div>
         ${project.description ? `<div class="project-description">${Utils.escapeHtml(project.description)}</div>` : ''}
+        <div class="project-count-pills">
+          <span class="count-pill count-pill-epic">${epicCount} epic${epicCount !== 1 ? 's' : ''}</span>
+          <span class="count-pill count-pill-other">${otherCount} standalone item${otherCount !== 1 ? 's' : ''}</span>
+          ${isCollapsed ? '<span class="expand-hint">Expand to view details</span>' : ''}
+        </div>
       </div>
       <div class="project-body-wrap ${isCollapsed ? 'collapsed' : ''}">
         <div class="project-body">${renderTwoLanes(filtered, project)}</div>
@@ -699,7 +696,7 @@ function renderTwoLanes(items, project) {
         </div>
       </div>
       <div class="lane-body">
-        ${otherCount > 0 ? otherItems.map(item => renderItemRow(item)).join('') : `
+        ${otherCount > 0 ? otherItems.map(item => renderItemRow(item, true)).join('') : `
           <div class="lane-empty">No other items</div>
         `}
       </div>
@@ -743,21 +740,18 @@ function renderEpicContainer(epic, allItems, project) {
     </div>`;
 }
 
-function renderItemRow(feature) {
+function renderItemRow(feature, isStandalone) {
   const itemType = feature.type || 'Story';
-  const typeColor = Utils.getTypeColor(itemType);
 
   return `
-    <div class="item-row" data-action="edit-feature" data-feature-id="${feature.id}">
+    <div class="item-row ${isStandalone ? 'item-row-standalone' : ''}" data-action="edit-feature" data-feature-id="${feature.id}">
       <div class="item-row-type" data-type="${itemType}">${itemType}</div>
       <div class="item-row-name">${Utils.escapeHtml(feature.name)}</div>
-      <div class="item-row-status"><span class="badge ${Utils.getStatusBadgeClass(feature.status)}">${feature.status}</span></div>
-      <div class="item-row-squad">${feature.squad ? Utils.escapeHtml(feature.squad) : ''}</div>
-      <div class="item-row-dates">
-        ${Utils.formatDate(feature.startDate)} <span class="date-sep">&#8594;</span> ${Utils.formatDate(feature.endDate)}
-      </div>
-      <div class="item-row-mock">
-        ${feature.mockLink ? `<a class="mock-link" href="${Utils.escapeHtml(feature.mockLink)}" title="${Utils.escapeHtml(feature.mockLink)}">Mock</a>` : ''}
+      <div class="item-row-status">${feature.status || ''}</div>
+      <div class="item-row-squad">${feature.squad ? Utils.escapeHtml(feature.squad) : '--'}</div>
+      <div class="item-row-dates">${feature.startDate ? Utils.formatDate(feature.startDate) + '  ' + Utils.formatDate(feature.endDate) : '-- --'}</div>
+      <div class="item-row-tag">
+        ${feature.mockLink ? `<a class="tag-pill" href="${Utils.escapeHtml(feature.mockLink)}" title="${Utils.escapeHtml(feature.mockLink)}">Mock</a>` : ''}
       </div>
       <div class="item-row-jira">
         ${feature.jiraKey ? `<a class="jira-item-link" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(feature.jiraKey)}">${Utils.escapeHtml(feature.jiraKey)}</a>` : ''}
