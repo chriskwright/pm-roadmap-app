@@ -1877,7 +1877,7 @@ function getSampleData() {
       name: 'Platform Modernization',
       description: 'Migrate core infrastructure to modern stack with improved scalability and performance.',
       status: 'In Progress',
-      epicKey: 'DOMO-481000',
+      epicKey: '',
       createdAt: '2025-12-15T00:00:00Z',
       updatedAt: '2026-03-20T00:00:00Z'
     },
@@ -1886,7 +1886,7 @@ function getSampleData() {
       name: 'Analytics Dashboard v3',
       description: 'Next-generation analytics with real-time streaming and custom widget support.',
       status: 'In Progress',
-      epicKey: 'DOMO-481050',
+      epicKey: '',
       createdAt: '2026-01-10T00:00:00Z',
       updatedAt: '2026-04-01T00:00:00Z'
     },
@@ -1904,7 +1904,7 @@ function getSampleData() {
       name: 'API Gateway',
       description: 'Centralized API gateway with rate limiting, auth, and developer portal.',
       status: 'Done',
-      epicKey: 'DOMO-480900',
+      epicKey: '',
       createdAt: '2025-09-15T00:00:00Z',
       updatedAt: '2026-01-31T00:00:00Z'
     },
@@ -1913,7 +1913,7 @@ function getSampleData() {
       name: 'Data Pipeline Upgrade',
       description: 'Kafka integration, ETL optimization, and real-time data quality monitoring.',
       status: 'In Progress',
-      epicKey: 'DOMO-481100',
+      epicKey: '',
       createdAt: '2026-02-01T00:00:00Z',
       updatedAt: '2026-04-10T00:00:00Z'
     }
@@ -1921,16 +1921,16 @@ function getSampleData() {
 
   const features = [
     // Platform Modernization
-    { id: 'feat-1a', projectId: 'proj-1', name: 'Migrate Auth Service', description: 'Move authentication to OAuth2/OIDC with SSO support.', status: 'Done', type: 'Story', startDate: '2026-01-06', endDate: '2026-02-14', jiraKey: 'DOMO-481001', createdAt: '2025-12-15T00:00:00Z', lastModifiedAt: '2026-02-14T10:00:00Z' },
-    { id: 'feat-1b', projectId: 'proj-1', name: 'API Gateway v2', description: 'Implement new API gateway with circuit breakers and observability.', status: 'In Progress', type: 'Improvement', startDate: '2026-02-01', endDate: '2026-04-15', jiraKey: 'DOMO-481010', createdAt: '2025-12-15T00:00:00Z', lastModifiedAt: '2026-04-14T11:00:00Z' },
+    { id: 'feat-1a', projectId: 'proj-1', name: 'Migrate Auth Service', description: 'Move authentication to OAuth2/OIDC with SSO support.', status: 'Done', type: 'Story', startDate: '2026-01-06', endDate: '2026-02-14', jiraKey: '', createdAt: '2025-12-15T00:00:00Z', lastModifiedAt: '2026-02-14T10:00:00Z' },
+    { id: 'feat-1b', projectId: 'proj-1', name: 'API Gateway v2', description: 'Implement new API gateway with circuit breakers and observability.', status: 'In Progress', type: 'Improvement', startDate: '2026-02-01', endDate: '2026-04-15', jiraKey: '', createdAt: '2025-12-15T00:00:00Z', lastModifiedAt: '2026-04-14T11:00:00Z' },
     { id: 'feat-1c', projectId: 'proj-1', name: 'Database Sharding', description: 'Horizontal sharding strategy for user and event tables.', status: 'In Progress', type: 'Story', startDate: '2026-03-01', endDate: '2026-05-30', createdAt: '2026-01-10T00:00:00Z', lastModifiedAt: '2026-04-10T00:00:00Z' },
     { id: 'feat-1d', projectId: 'proj-1', name: 'Legacy Deprecation', description: 'Sunset v1 APIs and migrate remaining consumers.', status: 'Planned', type: 'Story', startDate: '2026-06-01', endDate: '2026-08-15', createdAt: '2026-02-01T00:00:00Z', lastModifiedAt: '2026-02-01T00:00:00Z' },
 
     // Analytics Dashboard v3
-    { id: 'feat-2a', projectId: 'proj-2', name: 'Real-time Streaming', description: 'WebSocket-based live data streaming for dashboards.', status: 'In Progress', type: 'Story', startDate: '2026-02-15', endDate: '2026-05-01', jiraKey: 'DOMO-481051', createdAt: '2026-01-10T00:00:00Z', lastModifiedAt: '2026-04-13T00:00:00Z' },
+    { id: 'feat-2a', projectId: 'proj-2', name: 'Real-time Streaming', description: 'WebSocket-based live data streaming for dashboards.', status: 'In Progress', type: 'Story', startDate: '2026-02-15', endDate: '2026-05-01', jiraKey: '', createdAt: '2026-01-10T00:00:00Z', lastModifiedAt: '2026-04-13T00:00:00Z' },
     { id: 'feat-2b', projectId: 'proj-2', name: 'Custom Widgets', description: 'Drag-and-drop widget builder with custom data bindings.', status: 'Planned', type: 'UX', startDate: '2026-04-01', endDate: '2026-06-30', createdAt: '2026-01-15T00:00:00Z', lastModifiedAt: '2026-03-22T00:00:00Z' },
     { id: 'feat-2c', projectId: 'proj-2', name: 'Export to PDF', description: 'One-click PDF export with scheduled report delivery.', status: 'Planned', type: 'Improvement', startDate: '2026-05-15', endDate: '2026-07-15', createdAt: '2026-02-01T00:00:00Z', lastModifiedAt: '2026-02-01T00:00:00Z' },
-    { id: 'feat-2d', projectId: 'proj-2', name: 'Dashboard Templates', description: 'Pre-built templates for common analytics use cases.', status: 'In Progress', type: 'Story', startDate: '2026-03-01', endDate: '2026-04-30', jiraKey: 'DOMO-481055', createdAt: '2026-01-20T00:00:00Z', lastModifiedAt: '2026-04-12T00:00:00Z' },
+    { id: 'feat-2d', projectId: 'proj-2', name: 'Dashboard Templates', description: 'Pre-built templates for common analytics use cases.', status: 'In Progress', type: 'Story', startDate: '2026-03-01', endDate: '2026-04-30', jiraKey: '', createdAt: '2026-01-20T00:00:00Z', lastModifiedAt: '2026-04-12T00:00:00Z' },
 
     // Mobile Experience
     { id: 'feat-3a', projectId: 'proj-3', name: 'Responsive Redesign', description: 'Fully responsive layouts for all core views.', status: 'Planned', type: 'UX', startDate: '2026-05-01', endDate: '2026-07-31', createdAt: '2026-03-01T00:00:00Z', lastModifiedAt: '2026-03-01T00:00:00Z' },
@@ -1938,12 +1938,12 @@ function getSampleData() {
     { id: 'feat-3c', projectId: 'proj-3', name: 'Push Notifications', description: 'Real-time alerts for status changes and mentions.', status: 'Planned', type: 'Improvement', startDate: '2026-08-01', endDate: '2026-10-15', createdAt: '2026-03-01T00:00:00Z', lastModifiedAt: '2026-03-01T00:00:00Z' },
 
     // API Gateway (Done)
-    { id: 'feat-4a', projectId: 'proj-4', name: 'Rate Limiting', description: 'Sliding window rate limiter with per-client quotas.', status: 'Done', type: 'Story', startDate: '2025-10-01', endDate: '2025-12-15', jiraKey: 'DOMO-480901', createdAt: '2025-09-15T00:00:00Z', lastModifiedAt: '2025-12-15T00:00:00Z' },
-    { id: 'feat-4b', projectId: 'proj-4', name: 'Auth Tokens', description: 'JWT-based auth with refresh token rotation.', status: 'Done', type: 'Story', startDate: '2025-11-01', endDate: '2026-01-15', jiraKey: 'DOMO-480910', createdAt: '2025-09-20T00:00:00Z', lastModifiedAt: '2026-01-15T00:00:00Z' },
-    { id: 'feat-4c', projectId: 'proj-4', name: 'Documentation Portal', description: 'Auto-generated API docs with interactive sandbox.', status: 'Done', type: 'Improvement', startDate: '2025-12-01', endDate: '2026-01-31', jiraKey: 'DOMO-480920', createdAt: '2025-10-01T00:00:00Z', lastModifiedAt: '2026-01-31T00:00:00Z' },
+    { id: 'feat-4a', projectId: 'proj-4', name: 'Rate Limiting', description: 'Sliding window rate limiter with per-client quotas.', status: 'Done', type: 'Story', startDate: '2025-10-01', endDate: '2025-12-15', jiraKey: '', createdAt: '2025-09-15T00:00:00Z', lastModifiedAt: '2025-12-15T00:00:00Z' },
+    { id: 'feat-4b', projectId: 'proj-4', name: 'Auth Tokens', description: 'JWT-based auth with refresh token rotation.', status: 'Done', type: 'Story', startDate: '2025-11-01', endDate: '2026-01-15', jiraKey: '', createdAt: '2025-09-20T00:00:00Z', lastModifiedAt: '2026-01-15T00:00:00Z' },
+    { id: 'feat-4c', projectId: 'proj-4', name: 'Documentation Portal', description: 'Auto-generated API docs with interactive sandbox.', status: 'Done', type: 'Improvement', startDate: '2025-12-01', endDate: '2026-01-31', jiraKey: '', createdAt: '2025-10-01T00:00:00Z', lastModifiedAt: '2026-01-31T00:00:00Z' },
 
     // Data Pipeline Upgrade
-    { id: 'feat-5a', projectId: 'proj-5', name: 'Kafka Integration', description: 'Replace polling with event-driven Kafka consumers.', status: 'In Progress', type: 'Story', startDate: '2026-03-15', endDate: '2026-06-15', jiraKey: 'DOMO-481101', createdAt: '2026-02-01T00:00:00Z', lastModifiedAt: '2026-04-13T00:00:00Z' },
+    { id: 'feat-5a', projectId: 'proj-5', name: 'Kafka Integration', description: 'Replace polling with event-driven Kafka consumers.', status: 'In Progress', type: 'Story', startDate: '2026-03-15', endDate: '2026-06-15', jiraKey: '', createdAt: '2026-02-01T00:00:00Z', lastModifiedAt: '2026-04-13T00:00:00Z' },
     { id: 'feat-5b', projectId: 'proj-5', name: 'ETL Optimization', description: 'Rewrite slow transforms with Apache Spark.', status: 'Planned', type: 'Improvement', startDate: '2026-05-01', endDate: '2026-07-31', createdAt: '2026-02-15T00:00:00Z', lastModifiedAt: '2026-04-01T00:00:00Z' },
     { id: 'feat-5c', projectId: 'proj-5', name: 'Data Quality Checks', description: 'Automated validation rules with anomaly detection.', status: 'Planned', type: 'Bug', startDate: '2026-06-15', endDate: '2026-08-31', createdAt: '2026-03-01T00:00:00Z', lastModifiedAt: '2026-03-01T00:00:00Z' },
     { id: 'feat-5d', projectId: 'proj-5', name: 'Monitoring Dashboard', description: 'Real-time pipeline health and throughput metrics.', status: 'In Progress', type: 'UX', startDate: '2026-04-01', endDate: '2026-05-31', createdAt: '2026-03-15T00:00:00Z', lastModifiedAt: '2026-04-14T09:00:00Z' }
@@ -1951,31 +1951,31 @@ function getSampleData() {
 
   const jiraTickets = [
     // Platform Modernization - Auth Service (synced, green — lastSynced after lastModified)
-    { id: 'jt-1a1', featureId: 'feat-1a', jiraKey: 'DOMO-481001', issueType: 'Story', title: 'Implement OAuth2 provider integration', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-01-06T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Sarah Chen' },
-    { id: 'jt-1a2', featureId: 'feat-1a', jiraKey: 'DOMO-481002', issueType: 'Story', title: 'SSO configuration and testing', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-01-08T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Mike Torres' },
+    { id: 'jt-1a1', featureId: 'feat-1a', jiraKey: '', issueType: 'Story', title: 'Implement OAuth2 provider integration', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-01-06T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Sarah Chen' },
+    { id: 'jt-1a2', featureId: 'feat-1a', jiraKey: '', issueType: 'Story', title: 'SSO configuration and testing', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-01-08T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Mike Torres' },
     // API Gateway v2 (mix — yellow, feature modified after sync)
-    { id: 'jt-1b1', featureId: 'feat-1b', jiraKey: 'DOMO-481010', issueType: 'Story', title: 'Circuit breaker implementation', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-02-05T00:00:00Z', lastSyncedAt: '2026-04-13T10:00:00Z', assignee: 'James Park' },
+    { id: 'jt-1b1', featureId: 'feat-1b', jiraKey: '', issueType: 'Story', title: 'Circuit breaker implementation', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-02-05T00:00:00Z', lastSyncedAt: '2026-04-13T10:00:00Z', assignee: 'James Park' },
     { id: 'jt-1b2', featureId: 'feat-1b', jiraKey: '', issueType: 'Improvement', title: 'Add OpenTelemetry tracing', description: 'Distributed tracing for all gateway routes.', jiraProject: 'DOMO', status: 'draft', createdAt: '2026-03-10T00:00:00Z' },
     // Database Sharding (draft — gray)
     { id: 'jt-1c1', featureId: 'feat-1c', jiraKey: '', issueType: 'Story', title: 'Design sharding key strategy', description: '', jiraProject: 'DOMO', status: 'draft', createdAt: '2026-03-15T00:00:00Z' },
 
     // Analytics - Real-time (synced, green)
-    { id: 'jt-2a1', featureId: 'feat-2a', jiraKey: 'DOMO-481051', issueType: 'Story', title: 'WebSocket server infrastructure', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-02-20T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Lisa Wang' },
+    { id: 'jt-2a1', featureId: 'feat-2a', jiraKey: '', issueType: 'Story', title: 'WebSocket server infrastructure', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-02-20T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Lisa Wang' },
     // Custom Widgets (drafts — gray)
     { id: 'jt-2b1', featureId: 'feat-2b', jiraKey: '', issueType: 'Story', title: 'Widget drag-and-drop framework', description: '', jiraProject: 'DOMO', status: 'draft', createdAt: '2026-03-20T00:00:00Z' },
     { id: 'jt-2b2', featureId: 'feat-2b', jiraKey: '', issueType: 'Mock', title: 'Widget builder UI mockups', description: 'Design all widget builder screens.', jiraProject: 'DOMO', status: 'draft', createdAt: '2026-03-22T00:00:00Z' },
     // Dashboard Templates (synced, green)
-    { id: 'jt-2d1', featureId: 'feat-2d', jiraKey: 'DOMO-481055', issueType: 'Story', title: 'Template engine implementation', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-03-05T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'David Kim' },
+    { id: 'jt-2d1', featureId: 'feat-2d', jiraKey: '', issueType: 'Story', title: 'Template engine implementation', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-03-05T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'David Kim' },
 
     // API Gateway - Rate Limiting (synced, green)
-    { id: 'jt-4a1', featureId: 'feat-4a', jiraKey: 'DOMO-480901', issueType: 'Story', title: 'Sliding window rate limiter', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2025-10-05T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Alex Rivera' },
+    { id: 'jt-4a1', featureId: 'feat-4a', jiraKey: '', issueType: 'Story', title: 'Sliding window rate limiter', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2025-10-05T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Alex Rivera' },
     // Auth Tokens (synced, green)
-    { id: 'jt-4b1', featureId: 'feat-4b', jiraKey: 'DOMO-480910', issueType: 'Story', title: 'JWT generation and validation', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2025-11-05T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Alex Rivera' },
+    { id: 'jt-4b1', featureId: 'feat-4b', jiraKey: '', issueType: 'Story', title: 'JWT generation and validation', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2025-11-05T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Alex Rivera' },
     // Documentation Portal (synced, green)
-    { id: 'jt-4c1', featureId: 'feat-4c', jiraKey: 'DOMO-480920', issueType: 'Story', title: 'Auto-gen API docs from OpenAPI spec', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2025-12-10T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Priya Sharma' },
+    { id: 'jt-4c1', featureId: 'feat-4c', jiraKey: '', issueType: 'Story', title: 'Auto-gen API docs from OpenAPI spec', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2025-12-10T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Priya Sharma' },
 
     // Data Pipeline - Kafka (synced, green)
-    { id: 'jt-5a1', featureId: 'feat-5a', jiraKey: 'DOMO-481101', issueType: 'Story', title: 'Kafka consumer service setup', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-03-20T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Raj Patel' },
+    { id: 'jt-5a1', featureId: 'feat-5a', jiraKey: '', issueType: 'Story', title: 'Kafka consumer service setup', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-03-20T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Raj Patel' },
     // ETL (draft — gray)
     { id: 'jt-5b1', featureId: 'feat-5b', jiraKey: '', issueType: 'Story', title: 'Spark ETL pipeline POC', description: '', jiraProject: 'DOMO', status: 'draft', createdAt: '2026-04-01T00:00:00Z' },
     // Monitoring (draft — gray, feature modified after → yellow when synced)
