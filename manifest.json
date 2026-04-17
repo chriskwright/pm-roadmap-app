@@ -1,11 +1,20 @@
 {
   "name": "PM Roadmap App",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "size": {
     "width": 1,
     "height": 1
   },
   "fileName": "manifest.json",
   "datasetsMapping": [],
-  "id": "6afc1658-0047-4c61-9d88-80029166bc6e"
+  "id": "6afc1658-0047-4c61-9d88-80029166bc6e",
+  "proxyId": "jira",
+  "proxy": {
+    "jira": {
+      "url": "https://onjira.domo.com",
+      "headers": {
+        "Authorization": "Bearer ${JIRA_PAT}"
+      }
+    }
+  }
 }

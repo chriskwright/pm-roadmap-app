@@ -18,7 +18,7 @@ const CONFIG = {
     epicLink: 'customfield_11000'
   },
   issueTypes: ['Epic', 'Story', 'Improvement', 'Bug', 'Mock'],
-  statuses: ['Planned', 'In Progress', 'Done'],
+  statuses: ['Planned', 'In Progress', 'Done', 'Blocked'],
   priorities: ['P1', 'P2', 'P3', 'P4', 'P5'],
   projectColors: [
     '#3b82f6', '#8b5cf6', '#ec4899', '#10b981',
@@ -38,7 +38,38 @@ const CONFIG = {
     Improvement: '\u2B06',
     Bug: '\u{1F41B}',
     Mock: '\u{1F3A8}'
-  }
+  },
+  // App → Jira status transition IDs
+  transitionMap: {
+    'Planned->In Progress': '1351',
+    'In Progress->Done': '1361',
+    'Done->Closed': '1371',
+    'Planned->Blocked': '1401',
+    'In Progress->Blocked': '1401',
+    'Done->Blocked': '1401',
+    'Blocked->Planned': '1321',
+    'Blocked->In Progress': '1351',
+    'Done->In Progress': '1321',
+    'Done->Planned': '1321',
+    'In Progress->Planned': '1321'
+  },
+  // Jira → App status mapping
+  jiraStatusToApp: {
+    'Open': 'Planned',
+    'To Do': 'Planned',
+    'Concept': 'Planned',
+    'In Progress': 'In Progress',
+    'UX/Design': 'In Progress',
+    'Ready for Dev': 'In Progress',
+    'Prep': 'In Progress',
+    'Pull Request': 'In Progress',
+    'QA Planning': 'In Progress',
+    'Resolved': 'Done',
+    'Closed': 'Done',
+    'On Hold': 'Blocked',
+    'Blocked': 'Blocked'
+  },
+  jiraInstance: 'https://onjira.domo.com'
 };
 
 // ===== STATE =====
@@ -110,6 +141,7 @@ const Utils = {
       case 'Planned': return 'badge-planned';
       case 'In Progress': return 'badge-progress';
       case 'Done': return 'badge-done';
+      case 'Blocked': return 'badge-blocked';
       default: return 'badge-planned';
     }
   },
@@ -129,24 +161,84 @@ const Utils = {
       clearTimeout(timer);
       timer = setTimeout(() => fn.apply(this, args), ms);
     };
+  },
+
+  timeAgo(dateStr) {
+    if (!dateStr) return '';
+    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return Math.floor(diff / 86400) + 'd ago';
   }
 };
+
+// Sync state for a feature based on its tickets
+function getFeatureSyncState(featureId) {
+  const tickets = getFeatureTickets(featureId);
+  if (tickets.length === 0) return null;
+  const synced = tickets.filter(t => t.status === 'synced' && t.jiraKey);
+  if (synced.length === 0) return { state: 'draft', lastSynced: null };
+  const feature = state.features.find(f => f.id === featureId);
+  const featureMod = feature && feature.lastModifiedAt ? new Date(feature.lastModifiedAt).getTime() : 0;
+  const lastSync = Math.max(...synced.map(t => t.lastSyncedAt ? new Date(t.lastSyncedAt).getTime() : 0));
+  const lastSyncStr = synced.reduce((best, t) => {
+    if (!best) return t.lastSyncedAt;
+    return (t.lastSyncedAt && t.lastSyncedAt > best) ? t.lastSyncedAt : best;
+  }, null);
+  if (featureMod > lastSync) return { state: 'local-changes', lastSynced: lastSyncStr };
+  return { state: 'synced', lastSynced: lastSyncStr };
+}
 
 // ===== DATA SERVICE (AppDB with localStorage fallback) =====
 const DataService = {
   basePath: '/domo/datastores/v1/collections',
+  _initErrors: [],
 
   async init() {
-    try {
-      if (typeof domo !== 'undefined' && domo.get) {
-        await domo.get(`${this.basePath}/${CONFIG.collections.projects}/documents`);
-        state.useLocalStorage = false;
-      } else {
-        state.useLocalStorage = true;
-      }
-    } catch (e) {
+    if (typeof domo === 'undefined' || !domo.get) {
       state.useLocalStorage = true;
+      return;
     }
+
+    // Step 1: Ensure collections exist by creating them (idempotent — ignores if already exists)
+    const collectionNames = [CONFIG.collections.projects, CONFIG.collections.features, CONFIG.collections.jiraTickets];
+    for (const name of collectionNames) {
+      try {
+        await domo.post('/domo/datastores/v1/collections', { name: name });
+      } catch (e) {
+        // 409 = already exists (good), anything else we log
+        this._initErrors.push('create ' + name + ': ' + ((e && e.message) || e));
+      }
+    }
+
+    // Step 2: Verify we can read from a collection
+    try {
+      await domo.get(`${this.basePath}/${CONFIG.collections.projects}/documents`);
+      state.useLocalStorage = false;
+      return;
+    } catch (e) {
+      this._initErrors.push('read: ' + ((e && e.message) || e));
+    }
+
+    // If read failed, fall back to localStorage
+    state.useLocalStorage = true;
+    console.warn('AppDB init errors:', this._initErrors);
+  },
+
+  _unwrap(resp) {
+    if (!Array.isArray(resp)) return [];
+    return resp.map(item => {
+      if (item && item.content && typeof item.content === 'object') {
+        return { ...item.content, _docId: item.id };
+      }
+      return item;
+    });
+  },
+
+  _url(collection, docId) {
+    const base = `${this.basePath}/${collection}/documents`;
+    return docId != null ? `${base}/${docId}` : base;
   },
 
   async getAll(collection) {
@@ -155,8 +247,8 @@ const DataService = {
       return raw ? JSON.parse(raw) : [];
     }
     try {
-      const docs = await domo.get(`${this.basePath}/${collection}/documents`);
-      return Array.isArray(docs) ? docs : [];
+      const resp = await domo.get(this._url(collection));
+      return this._unwrap(resp);
     } catch {
       return [];
     }
@@ -170,11 +262,23 @@ const DataService = {
       localStorage.setItem('pmr_' + collection, JSON.stringify(items));
       return doc;
     }
+    const payload = { ...doc };
+    delete payload._docId;
     try {
-      const result = await domo.post(`${this.basePath}/${collection}/documents`, doc);
-      return result || doc;
-    } catch {
+      const resp = await domo.post(this._url(collection), { content: payload });
+      if (resp && resp.id != null) doc._docId = resp.id;
       return doc;
+    } catch (e1) {
+      // Retry without content wrapper
+      try {
+        const resp = await domo.post(this._url(collection), payload);
+        if (resp && resp.id != null) doc._docId = resp.id;
+        return doc;
+      } catch (e2) {
+        const msg = (e2 && e2.message) || (e1 && e1.message) || String(e1 || e2);
+        console.error('AppDB create failed:', collection, e1, e2);
+        return doc;
+      }
     }
   },
 
@@ -186,11 +290,20 @@ const DataService = {
       localStorage.setItem('pmr_' + collection, JSON.stringify(items));
       return doc;
     }
+    const docId = doc._docId || doc.id;
+    const payload = { ...doc };
+    delete payload._docId;
     try {
-      await domo.put(`${this.basePath}/${collection}/documents/${doc.id}`, doc);
+      await domo.put(this._url(collection, docId), { content: payload });
       return doc;
     } catch {
-      return doc;
+      try {
+        await domo.put(this._url(collection, docId), payload);
+        return doc;
+      } catch (e) {
+        console.error('AppDB update failed:', collection, doc.id, e);
+        return doc;
+      }
     }
   },
 
@@ -202,9 +315,15 @@ const DataService = {
       return true;
     }
     try {
-      await domo.delete(`${this.basePath}/${collection}/documents/${id}`);
+      let docId = id;
+      const allCollections = { Projects: state.projects, Features: state.features, JiraTickets: state.jiraTickets };
+      const items = allCollections[collection] || [];
+      const item = items.find(i => i.id === id);
+      if (item && item._docId) docId = item._docId;
+      await domo.delete(this._url(collection, docId));
       return true;
-    } catch {
+    } catch (e) {
+      console.error('AppDB delete failed:', collection, id, e);
       return false;
     }
   }
@@ -253,6 +372,35 @@ const JiraService = {
       epicKey
     );
     return result;
+  },
+
+  async transitionIssue(jiraKey, transitionId) {
+    try {
+      await domo.post(this.getUrl(`/issue/${jiraKey}/transitions`), {
+        transition: { id: transitionId }
+      });
+      return true;
+    } catch (e) {
+      throw new Error(`Transition failed for ${jiraKey}`);
+    }
+  },
+
+  async updateIssueFields(jiraKey, fields) {
+    try {
+      await domo.put(this.getUrl(`/issue/${jiraKey}`), { fields });
+      return true;
+    } catch (e) {
+      throw new Error(`Failed to update ${jiraKey}`);
+    }
+  },
+
+  async getIssue(jiraKey) {
+    try {
+      const result = await domo.get(this.getUrl(`/issue/${jiraKey}`));
+      return result;
+    } catch (e) {
+      throw new Error(`Failed to fetch ${jiraKey}`);
+    }
   }
 };
 
@@ -370,6 +518,7 @@ function renderHeader() {
             <span>Gantt</span>
           </button>
         </div>
+        <button class="btn btn-secondary btn-sm" data-action="refresh-all" title="Refresh all from Jira">&#x1F504; Refresh</button>
         <button class="btn btn-primary" data-action="add-project">+ Project</button>
       </div>
     </header>`;
@@ -390,8 +539,12 @@ function renderToolbar() {
         <option value="Planned" ${state.statusFilter === 'Planned' ? 'selected' : ''}>Planned</option>
         <option value="In Progress" ${state.statusFilter === 'In Progress' ? 'selected' : ''}>In Progress</option>
         <option value="Done" ${state.statusFilter === 'Done' ? 'selected' : ''}>Done</option>
+        <option value="Blocked" ${state.statusFilter === 'Blocked' ? 'selected' : ''}>Blocked</option>
       </select>
       <div class="toolbar-spacer"></div>
+      <button class="btn btn-secondary btn-sm" data-action="toggle-collapse-all">
+        ${state.collapsedProjects.size > 0 ? 'Expand All' : 'Collapse All'}
+      </button>
     </div>`;
 }
 
@@ -429,24 +582,28 @@ function renderProjectGroup(project, index) {
   return `
     <div class="project-group ${isCollapsed ? 'collapsed' : ''}" data-project-id="${project.id}">
       <div class="project-header" data-action="toggle-project" data-project-id="${project.id}">
-        <span class="project-collapse-icon">&#9660;</span>
-        <span class="project-color-dot" style="background:${color}"></span>
-        <span class="project-name">${Utils.escapeHtml(project.name)}</span>
-        <span class="badge ${Utils.getStatusBadgeClass(project.status)}">${project.status}</span>
-        ${project.epicKey ? `<span class="project-epic-badge">&#9889; ${Utils.escapeHtml(project.epicKey)}</span>` : ''}
-        <span class="project-meta">
-          <span class="project-feature-count">${features.length} feature${features.length !== 1 ? 's' : ''}</span>
-        </span>
-        <div class="project-progress-wrap">
-          <div class="progress-bar" style="flex:1">
-            <div class="progress-fill ${pct === 100 ? 'complete' : ''}" style="width:${pct}%"></div>
+        <div class="project-header-top">
+          <span class="project-collapse-icon">&#9660;</span>
+          <span class="project-color-dot" style="background:${color}"></span>
+          <span class="project-name">${Utils.escapeHtml(project.name)}</span>
+          <span class="badge ${Utils.getStatusBadgeClass(project.status)}">${project.status}</span>
+          ${project.epicKey ? `<span class="project-epic-badge">&#9889; ${Utils.escapeHtml(project.epicKey)}</span>` : ''}
+          <span class="project-meta">
+            <span class="project-feature-count">${features.length} feature${features.length !== 1 ? 's' : ''}</span>
+          </span>
+          <div class="project-progress-wrap">
+            <div class="progress-bar" style="flex:1">
+              <div class="progress-fill ${pct === 100 ? 'complete' : ''}" style="width:${pct}%"></div>
+            </div>
+            <span class="project-progress-pct">${pct}%</span>
           </div>
-          <span class="project-progress-pct">${pct}%</span>
+          <div class="project-header-actions">
+            <button class="btn-icon" data-action="refresh-project" data-project-id="${project.id}" title="Refresh from Jira">&#x1F504;</button>
+            <button class="btn-icon" data-action="edit-project" data-project-id="${project.id}" title="Edit project">&#9998;</button>
+            <button class="btn-icon" data-action="delete-project" data-project-id="${project.id}" title="Delete project">&#128465;</button>
+          </div>
         </div>
-        <div class="project-header-actions" onclick="event.stopPropagation()">
-          <button class="btn-icon" data-action="edit-project" data-project-id="${project.id}" title="Edit project">&#9998;</button>
-          <button class="btn-icon" data-action="delete-project" data-project-id="${project.id}" title="Delete project">&#128465;</button>
-        </div>
+        ${project.description ? `<div class="project-description">${Utils.escapeHtml(project.description)}</div>` : ''}
       </div>
       <div class="project-collapse-body">
         <div class="project-collapse-inner">
@@ -472,6 +629,16 @@ function renderFeatureCard(feature, projectColor) {
   const tickets = getFeatureTickets(feature.id);
   const syncedCount = tickets.filter(t => t.status === 'synced').length;
   const draftCount = tickets.filter(t => t.status === 'draft').length;
+  const sync = getFeatureSyncState(feature.id);
+
+  let syncDotHtml = '';
+  if (sync) {
+    const dotClass = sync.state === 'synced' ? 'sync-green' : sync.state === 'local-changes' ? 'sync-yellow' : 'sync-gray';
+    const dotTitle = sync.state === 'synced' ? 'Synced' : sync.state === 'local-changes' ? 'Local changes' : 'Draft';
+    syncDotHtml = `<span class="sync-dot ${dotClass}" title="${dotTitle}"></span>`;
+  }
+
+  const timeAgoStr = sync && sync.lastSynced ? Utils.timeAgo(sync.lastSynced) : '';
 
   return `
     <div class="feature-card" data-action="edit-feature" data-feature-id="${feature.id}">
@@ -491,7 +658,9 @@ function renderFeatureCard(feature, projectColor) {
           ${Utils.formatDate(feature.endDate)}
         </span>
         <div class="feature-card-jira">
+          ${syncDotHtml}
           ${tickets.length > 0 ? `<span class="jira-count-badge">${syncedCount > 0 ? syncedCount + ' synced' : ''}${syncedCount > 0 && draftCount > 0 ? ' / ' : ''}${draftCount > 0 ? draftCount + ' draft' : ''}</span>` : ''}
+          ${timeAgoStr ? `<span class="sync-time">${timeAgoStr}</span>` : ''}
         </div>
       </div>
     </div>`;
@@ -753,7 +922,7 @@ function openProjectModal(projectId) {
       if (isEdit) {
         modal.querySelector('#proj-delete').addEventListener('click', () => {
           Modal.close();
-          Modal.confirm(`Delete "${project.name}" and all its features?`, async () => {
+          Modal.confirm('Are you sure you want to delete this project? You cannot restore the project.', async () => {
             // Delete features and their tickets
             const feats = getProjectFeatures(project.id);
             for (const f of feats) {
@@ -799,7 +968,8 @@ function openFeatureModal(featureId, projectId) {
             </div>
             <div class="jira-ticket-info">
               <div class="jira-ticket-title">${Utils.escapeHtml(t.title)}</div>
-              ${t.jiraKey ? `<div class="jira-ticket-key">${Utils.escapeHtml(t.jiraKey)}</div>` : ''}
+              ${t.jiraKey ? `<a class="jira-ticket-key" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(t.jiraKey)}" target="_blank" onclick="event.stopPropagation()">${Utils.escapeHtml(t.jiraKey)}</a>` : ''}
+              ${t.assignee ? `<span class="jira-ticket-assignee">${Utils.escapeHtml(t.assignee)}</span>` : ''}
             </div>
             <span class="badge-jira ${t.status === 'synced' ? 'badge-jira-synced' : 'badge-jira-draft'}">
               ${t.status === 'synced' ? 'Synced' : 'Draft'}
@@ -909,28 +1079,94 @@ function openFeatureModal(featureId, projectId) {
         if (!name) { Toast.warning('Feature name is required'); return; }
 
         const now = new Date().toISOString();
+        const oldStatus = isEdit ? feature.status : null;
+        const newStatus = modal.querySelector('#feat-status').value;
+        const newDesc = modal.querySelector('#feat-desc').value.trim();
         const doc = {
           id: isEdit ? feature.id : Utils.id(),
           projectId: feature.projectId || projectId,
           name,
-          description: modal.querySelector('#feat-desc').value.trim(),
-          status: modal.querySelector('#feat-status').value,
+          description: newDesc,
+          status: newStatus,
           priority: modal.querySelector('#feat-priority').value,
           startDate: modal.querySelector('#feat-start').value || null,
           endDate: modal.querySelector('#feat-end').value || null,
-          createdAt: isEdit ? feature.createdAt : now
+          createdAt: isEdit ? feature.createdAt : now,
+          lastModifiedAt: now
         };
 
-        if (isEdit) {
-          await DataService.update(CONFIG.collections.features, doc);
-          const idx = state.features.findIndex(f => f.id === doc.id);
-          if (idx >= 0) state.features[idx] = doc;
-          Toast.success('Feature updated');
-        } else {
+        if (!isEdit) {
           await DataService.create(CONFIG.collections.features, doc);
           state.features.push(doc);
           Toast.success('Feature created');
+          Modal.close();
+          render();
+          return;
         }
+
+        // Save feature locally
+        await DataService.update(CONFIG.collections.features, doc);
+        const fIdx = state.features.findIndex(f => f.id === doc.id);
+        if (fIdx >= 0) state.features[fIdx] = { ...doc };
+
+        // Jira sync for synced tickets
+        const syncedTickets = state.jiraTickets.filter(
+          t => t.featureId === feature.id && t.status === 'synced' && t.jiraKey
+        );
+        let jiraOk = true;
+        let jiraSynced = false;
+
+        // 1. Status transition
+        if (oldStatus !== newStatus && syncedTickets.length > 0) {
+          const transKey = `${oldStatus}->${newStatus}`;
+          const transitionId = CONFIG.transitionMap[transKey];
+          if (transitionId) {
+            try {
+              for (const ticket of syncedTickets) {
+                await JiraService.transitionIssue(ticket.jiraKey, transitionId);
+                ticket.lastSyncedAt = now;
+                await DataService.update(CONFIG.collections.jiraTickets, ticket);
+                const tIdx = state.jiraTickets.findIndex(t => t.id === ticket.id);
+                if (tIdx >= 0) state.jiraTickets[tIdx] = { ...ticket };
+              }
+              jiraSynced = true;
+              Toast.success('Status synced to Jira');
+            } catch (e) {
+              jiraOk = false;
+              // Revert status locally
+              doc.status = oldStatus;
+              await DataService.update(CONFIG.collections.features, doc);
+              if (fIdx >= 0) state.features[fIdx] = { ...doc };
+              Toast.error('Jira transition failed \u2014 status reverted');
+            }
+          }
+        }
+
+        // 2. Field push (title/description)
+        if (jiraOk && syncedTickets.length > 0) {
+          const nameChanged = name !== (feature.name || '');
+          const descChanged = newDesc !== (feature.description || '');
+          if (nameChanged || descChanged) {
+            try {
+              for (const ticket of syncedTickets) {
+                const fields = {};
+                if (nameChanged) fields.summary = name;
+                if (descChanged) fields.description = newDesc;
+                await JiraService.updateIssueFields(ticket.jiraKey, fields);
+                ticket.lastSyncedAt = now;
+                await DataService.update(CONFIG.collections.jiraTickets, ticket);
+                const tIdx = state.jiraTickets.findIndex(t => t.id === ticket.id);
+                if (tIdx >= 0) state.jiraTickets[tIdx] = { ...ticket };
+              }
+              if (!jiraSynced) Toast.success('Synced to Jira');
+              jiraSynced = true;
+            } catch (e) {
+              // Non-critical — feature saved, Jira field push failed
+            }
+          }
+        }
+
+        if (!jiraSynced) Toast.success('Feature updated');
         Modal.close();
         render();
       });
@@ -1118,6 +1354,71 @@ async function pushAllForProject(projectId) {
   }
 }
 
+// ===== JIRA REFRESH =====
+async function refreshProjectFromJira(projectId) {
+  const feats = getProjectFeatures(projectId);
+  let total = 0, updated = 0, unchanged = 0, errors = 0;
+  const now = new Date().toISOString();
+
+  for (const feat of feats) {
+    const tickets = getFeatureTickets(feat.id).filter(t => t.status === 'synced' && t.jiraKey);
+    for (const ticket of tickets) {
+      total++;
+      try {
+        const issue = await JiraService.getIssue(ticket.jiraKey);
+        const jiraStatusName = issue.fields && issue.fields.status ? issue.fields.status.name : '';
+        const appStatus = CONFIG.jiraStatusToApp[jiraStatusName] || null;
+        const assignee = (issue.fields && issue.fields.assignee && issue.fields.assignee.displayName) || '';
+        let changed = false;
+
+        if (ticket.assignee !== assignee) {
+          ticket.assignee = assignee;
+          changed = true;
+        }
+        ticket.lastSyncedAt = now;
+        await DataService.update(CONFIG.collections.jiraTickets, ticket);
+        const tIdx = state.jiraTickets.findIndex(t => t.id === ticket.id);
+        if (tIdx >= 0) state.jiraTickets[tIdx] = { ...ticket };
+
+        // Update feature status if Jira status maps to a different app status
+        if (appStatus && appStatus !== feat.status) {
+          feat.status = appStatus;
+          feat.lastModifiedAt = now;
+          await DataService.update(CONFIG.collections.features, feat);
+          const fIdx = state.features.findIndex(f => f.id === feat.id);
+          if (fIdx >= 0) state.features[fIdx] = { ...feat };
+          changed = true;
+        }
+
+        if (changed) updated++;
+        else unchanged++;
+      } catch (e) {
+        errors++;
+      }
+    }
+  }
+  return { total, updated, unchanged, errors };
+}
+
+async function refreshAllFromJira() {
+  Toast.info('Refreshing from Jira...');
+  let totalAll = 0, updatedAll = 0, unchangedAll = 0;
+
+  for (const project of state.projects) {
+    const result = await refreshProjectFromJira(project.id);
+    totalAll += result.total;
+    updatedAll += result.updated;
+    unchangedAll += result.unchanged;
+  }
+
+  if (totalAll === 0) {
+    Toast.info('No synced tickets to refresh');
+  } else {
+    Toast.success(`Synced ${totalAll} tickets: ${updatedAll} updated, ${unchangedAll} unchanged`);
+  }
+  render();
+}
+
 // ===== DATA HELPERS =====
 function getProjectFeatures(projectId) {
   return state.features.filter(f => f.projectId === projectId);
@@ -1226,7 +1527,7 @@ function bindEvents() {
         e.stopPropagation();
         const proj = state.projects.find(p => p.id === target.dataset.projectId);
         if (proj) {
-          Modal.confirm(`Delete "${proj.name}" and all its features?`, async () => {
+          Modal.confirm('Are you sure you want to delete this project? You cannot restore the project.', async () => {
             const feats = getProjectFeatures(proj.id);
             for (const f of feats) {
               const tickets = getFeatureTickets(f.id);
@@ -1255,6 +1556,17 @@ function bindEvents() {
           if (group) group.classList.add('collapsed');
         }
         break;
+      case 'toggle-collapse-all':
+        const allGroups = document.querySelectorAll('.project-group');
+        if (state.collapsedProjects.size > 0) {
+          state.collapsedProjects.clear();
+          allGroups.forEach(g => g.classList.remove('collapsed'));
+        } else {
+          state.projects.forEach(p => state.collapsedProjects.add(p.id));
+          allGroups.forEach(g => g.classList.add('collapsed'));
+        }
+        target.textContent = state.collapsedProjects.size > 0 ? 'Expand All' : 'Collapse All';
+        break;
       case 'add-feature':
         openFeatureModal(null, target.dataset.projectId);
         break;
@@ -1264,6 +1576,22 @@ function bindEvents() {
       case 'push-all-project':
         e.stopPropagation();
         pushAllForProject(target.dataset.projectId);
+        break;
+      case 'refresh-project':
+        e.stopPropagation();
+        (async () => {
+          Toast.info('Refreshing...');
+          const result = await refreshProjectFromJira(target.dataset.projectId);
+          if (result.total === 0) {
+            Toast.info('No synced tickets to refresh');
+          } else {
+            Toast.success(`Synced ${result.total} tickets: ${result.updated} updated, ${result.unchanged} unchanged`);
+          }
+          render();
+        })();
+        break;
+      case 'refresh-all':
+        refreshAllFromJira();
         break;
     }
   });
@@ -1409,64 +1737,64 @@ function getSampleData() {
 
   const features = [
     // Platform Modernization
-    { id: 'feat-1a', projectId: 'proj-1', name: 'Migrate Auth Service', description: 'Move authentication to OAuth2/OIDC with SSO support.', status: 'Done', priority: 'P1', startDate: '2026-01-06', endDate: '2026-02-14', createdAt: '2025-12-15T00:00:00Z' },
-    { id: 'feat-1b', projectId: 'proj-1', name: 'API Gateway v2', description: 'Implement new API gateway with circuit breakers and observability.', status: 'In Progress', priority: 'P1', startDate: '2026-02-01', endDate: '2026-04-15', createdAt: '2025-12-15T00:00:00Z' },
-    { id: 'feat-1c', projectId: 'proj-1', name: 'Database Sharding', description: 'Horizontal sharding strategy for user and event tables.', status: 'In Progress', priority: 'P2', startDate: '2026-03-01', endDate: '2026-05-30', createdAt: '2026-01-10T00:00:00Z' },
-    { id: 'feat-1d', projectId: 'proj-1', name: 'Legacy Deprecation', description: 'Sunset v1 APIs and migrate remaining consumers.', status: 'Planned', priority: 'P3', startDate: '2026-06-01', endDate: '2026-08-15', createdAt: '2026-02-01T00:00:00Z' },
+    { id: 'feat-1a', projectId: 'proj-1', name: 'Migrate Auth Service', description: 'Move authentication to OAuth2/OIDC with SSO support.', status: 'Done', priority: 'P1', startDate: '2026-01-06', endDate: '2026-02-14', createdAt: '2025-12-15T00:00:00Z', lastModifiedAt: '2026-02-14T10:00:00Z' },
+    { id: 'feat-1b', projectId: 'proj-1', name: 'API Gateway v2', description: 'Implement new API gateway with circuit breakers and observability.', status: 'In Progress', priority: 'P1', startDate: '2026-02-01', endDate: '2026-04-15', createdAt: '2025-12-15T00:00:00Z', lastModifiedAt: '2026-04-14T11:00:00Z' },
+    { id: 'feat-1c', projectId: 'proj-1', name: 'Database Sharding', description: 'Horizontal sharding strategy for user and event tables.', status: 'In Progress', priority: 'P2', startDate: '2026-03-01', endDate: '2026-05-30', createdAt: '2026-01-10T00:00:00Z', lastModifiedAt: '2026-04-10T00:00:00Z' },
+    { id: 'feat-1d', projectId: 'proj-1', name: 'Legacy Deprecation', description: 'Sunset v1 APIs and migrate remaining consumers.', status: 'Planned', priority: 'P3', startDate: '2026-06-01', endDate: '2026-08-15', createdAt: '2026-02-01T00:00:00Z', lastModifiedAt: '2026-02-01T00:00:00Z' },
 
     // Analytics Dashboard v3
-    { id: 'feat-2a', projectId: 'proj-2', name: 'Real-time Streaming', description: 'WebSocket-based live data streaming for dashboards.', status: 'In Progress', priority: 'P1', startDate: '2026-02-15', endDate: '2026-05-01', createdAt: '2026-01-10T00:00:00Z' },
-    { id: 'feat-2b', projectId: 'proj-2', name: 'Custom Widgets', description: 'Drag-and-drop widget builder with custom data bindings.', status: 'Planned', priority: 'P2', startDate: '2026-04-01', endDate: '2026-06-30', createdAt: '2026-01-15T00:00:00Z' },
-    { id: 'feat-2c', projectId: 'proj-2', name: 'Export to PDF', description: 'One-click PDF export with scheduled report delivery.', status: 'Planned', priority: 'P3', startDate: '2026-05-15', endDate: '2026-07-15', createdAt: '2026-02-01T00:00:00Z' },
-    { id: 'feat-2d', projectId: 'proj-2', name: 'Dashboard Templates', description: 'Pre-built templates for common analytics use cases.', status: 'In Progress', priority: 'P2', startDate: '2026-03-01', endDate: '2026-04-30', createdAt: '2026-01-20T00:00:00Z' },
+    { id: 'feat-2a', projectId: 'proj-2', name: 'Real-time Streaming', description: 'WebSocket-based live data streaming for dashboards.', status: 'In Progress', priority: 'P1', startDate: '2026-02-15', endDate: '2026-05-01', createdAt: '2026-01-10T00:00:00Z', lastModifiedAt: '2026-04-13T00:00:00Z' },
+    { id: 'feat-2b', projectId: 'proj-2', name: 'Custom Widgets', description: 'Drag-and-drop widget builder with custom data bindings.', status: 'Planned', priority: 'P2', startDate: '2026-04-01', endDate: '2026-06-30', createdAt: '2026-01-15T00:00:00Z', lastModifiedAt: '2026-03-22T00:00:00Z' },
+    { id: 'feat-2c', projectId: 'proj-2', name: 'Export to PDF', description: 'One-click PDF export with scheduled report delivery.', status: 'Planned', priority: 'P3', startDate: '2026-05-15', endDate: '2026-07-15', createdAt: '2026-02-01T00:00:00Z', lastModifiedAt: '2026-02-01T00:00:00Z' },
+    { id: 'feat-2d', projectId: 'proj-2', name: 'Dashboard Templates', description: 'Pre-built templates for common analytics use cases.', status: 'In Progress', priority: 'P2', startDate: '2026-03-01', endDate: '2026-04-30', createdAt: '2026-01-20T00:00:00Z', lastModifiedAt: '2026-04-12T00:00:00Z' },
 
     // Mobile Experience
-    { id: 'feat-3a', projectId: 'proj-3', name: 'Responsive Redesign', description: 'Fully responsive layouts for all core views.', status: 'Planned', priority: 'P1', startDate: '2026-05-01', endDate: '2026-07-31', createdAt: '2026-03-01T00:00:00Z' },
-    { id: 'feat-3b', projectId: 'proj-3', name: 'Offline Mode', description: 'Service worker and IndexedDB for offline data access.', status: 'Planned', priority: 'P2', startDate: '2026-07-01', endDate: '2026-09-30', createdAt: '2026-03-01T00:00:00Z' },
-    { id: 'feat-3c', projectId: 'proj-3', name: 'Push Notifications', description: 'Real-time alerts for status changes and mentions.', status: 'Planned', priority: 'P3', startDate: '2026-08-01', endDate: '2026-10-15', createdAt: '2026-03-01T00:00:00Z' },
+    { id: 'feat-3a', projectId: 'proj-3', name: 'Responsive Redesign', description: 'Fully responsive layouts for all core views.', status: 'Planned', priority: 'P1', startDate: '2026-05-01', endDate: '2026-07-31', createdAt: '2026-03-01T00:00:00Z', lastModifiedAt: '2026-03-01T00:00:00Z' },
+    { id: 'feat-3b', projectId: 'proj-3', name: 'Offline Mode', description: 'Service worker and IndexedDB for offline data access.', status: 'Planned', priority: 'P2', startDate: '2026-07-01', endDate: '2026-09-30', createdAt: '2026-03-01T00:00:00Z', lastModifiedAt: '2026-03-01T00:00:00Z' },
+    { id: 'feat-3c', projectId: 'proj-3', name: 'Push Notifications', description: 'Real-time alerts for status changes and mentions.', status: 'Planned', priority: 'P3', startDate: '2026-08-01', endDate: '2026-10-15', createdAt: '2026-03-01T00:00:00Z', lastModifiedAt: '2026-03-01T00:00:00Z' },
 
     // API Gateway (Done)
-    { id: 'feat-4a', projectId: 'proj-4', name: 'Rate Limiting', description: 'Sliding window rate limiter with per-client quotas.', status: 'Done', priority: 'P1', startDate: '2025-10-01', endDate: '2025-12-15', createdAt: '2025-09-15T00:00:00Z' },
-    { id: 'feat-4b', projectId: 'proj-4', name: 'Auth Tokens', description: 'JWT-based auth with refresh token rotation.', status: 'Done', priority: 'P1', startDate: '2025-11-01', endDate: '2026-01-15', createdAt: '2025-09-20T00:00:00Z' },
-    { id: 'feat-4c', projectId: 'proj-4', name: 'Documentation Portal', description: 'Auto-generated API docs with interactive sandbox.', status: 'Done', priority: 'P2', startDate: '2025-12-01', endDate: '2026-01-31', createdAt: '2025-10-01T00:00:00Z' },
+    { id: 'feat-4a', projectId: 'proj-4', name: 'Rate Limiting', description: 'Sliding window rate limiter with per-client quotas.', status: 'Done', priority: 'P1', startDate: '2025-10-01', endDate: '2025-12-15', createdAt: '2025-09-15T00:00:00Z', lastModifiedAt: '2025-12-15T00:00:00Z' },
+    { id: 'feat-4b', projectId: 'proj-4', name: 'Auth Tokens', description: 'JWT-based auth with refresh token rotation.', status: 'Done', priority: 'P1', startDate: '2025-11-01', endDate: '2026-01-15', createdAt: '2025-09-20T00:00:00Z', lastModifiedAt: '2026-01-15T00:00:00Z' },
+    { id: 'feat-4c', projectId: 'proj-4', name: 'Documentation Portal', description: 'Auto-generated API docs with interactive sandbox.', status: 'Done', priority: 'P2', startDate: '2025-12-01', endDate: '2026-01-31', createdAt: '2025-10-01T00:00:00Z', lastModifiedAt: '2026-01-31T00:00:00Z' },
 
     // Data Pipeline Upgrade
-    { id: 'feat-5a', projectId: 'proj-5', name: 'Kafka Integration', description: 'Replace polling with event-driven Kafka consumers.', status: 'In Progress', priority: 'P1', startDate: '2026-03-15', endDate: '2026-06-15', createdAt: '2026-02-01T00:00:00Z' },
-    { id: 'feat-5b', projectId: 'proj-5', name: 'ETL Optimization', description: 'Rewrite slow transforms with Apache Spark.', status: 'Planned', priority: 'P2', startDate: '2026-05-01', endDate: '2026-07-31', createdAt: '2026-02-15T00:00:00Z' },
-    { id: 'feat-5c', projectId: 'proj-5', name: 'Data Quality Checks', description: 'Automated validation rules with anomaly detection.', status: 'Planned', priority: 'P3', startDate: '2026-06-15', endDate: '2026-08-31', createdAt: '2026-03-01T00:00:00Z' },
-    { id: 'feat-5d', projectId: 'proj-5', name: 'Monitoring Dashboard', description: 'Real-time pipeline health and throughput metrics.', status: 'In Progress', priority: 'P2', startDate: '2026-04-01', endDate: '2026-05-31', createdAt: '2026-03-15T00:00:00Z' }
+    { id: 'feat-5a', projectId: 'proj-5', name: 'Kafka Integration', description: 'Replace polling with event-driven Kafka consumers.', status: 'In Progress', priority: 'P1', startDate: '2026-03-15', endDate: '2026-06-15', createdAt: '2026-02-01T00:00:00Z', lastModifiedAt: '2026-04-13T00:00:00Z' },
+    { id: 'feat-5b', projectId: 'proj-5', name: 'ETL Optimization', description: 'Rewrite slow transforms with Apache Spark.', status: 'Planned', priority: 'P2', startDate: '2026-05-01', endDate: '2026-07-31', createdAt: '2026-02-15T00:00:00Z', lastModifiedAt: '2026-04-01T00:00:00Z' },
+    { id: 'feat-5c', projectId: 'proj-5', name: 'Data Quality Checks', description: 'Automated validation rules with anomaly detection.', status: 'Planned', priority: 'P3', startDate: '2026-06-15', endDate: '2026-08-31', createdAt: '2026-03-01T00:00:00Z', lastModifiedAt: '2026-03-01T00:00:00Z' },
+    { id: 'feat-5d', projectId: 'proj-5', name: 'Monitoring Dashboard', description: 'Real-time pipeline health and throughput metrics.', status: 'In Progress', priority: 'P2', startDate: '2026-04-01', endDate: '2026-05-31', createdAt: '2026-03-15T00:00:00Z', lastModifiedAt: '2026-04-14T09:00:00Z' }
   ];
 
   const jiraTickets = [
-    // Platform Modernization - Auth Service (synced)
-    { id: 'jt-1a1', featureId: 'feat-1a', jiraKey: 'DOMO-481001', issueType: 'Story', title: 'Implement OAuth2 provider integration', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-01-06T00:00:00Z' },
-    { id: 'jt-1a2', featureId: 'feat-1a', jiraKey: 'DOMO-481002', issueType: 'Story', title: 'SSO configuration and testing', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-01-08T00:00:00Z' },
-    // API Gateway v2 (mix)
-    { id: 'jt-1b1', featureId: 'feat-1b', jiraKey: 'DOMO-481010', issueType: 'Story', title: 'Circuit breaker implementation', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-02-05T00:00:00Z' },
+    // Platform Modernization - Auth Service (synced, green — lastSynced after lastModified)
+    { id: 'jt-1a1', featureId: 'feat-1a', jiraKey: 'DOMO-481001', issueType: 'Story', title: 'Implement OAuth2 provider integration', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-01-06T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Sarah Chen' },
+    { id: 'jt-1a2', featureId: 'feat-1a', jiraKey: 'DOMO-481002', issueType: 'Story', title: 'SSO configuration and testing', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-01-08T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Mike Torres' },
+    // API Gateway v2 (mix — yellow, feature modified after sync)
+    { id: 'jt-1b1', featureId: 'feat-1b', jiraKey: 'DOMO-481010', issueType: 'Story', title: 'Circuit breaker implementation', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-02-05T00:00:00Z', lastSyncedAt: '2026-04-13T10:00:00Z', assignee: 'James Park' },
     { id: 'jt-1b2', featureId: 'feat-1b', jiraKey: '', issueType: 'Improvement', title: 'Add OpenTelemetry tracing', description: 'Distributed tracing for all gateway routes.', jiraProject: 'DOMO', status: 'draft', createdAt: '2026-03-10T00:00:00Z' },
-    // Database Sharding (draft)
+    // Database Sharding (draft — gray)
     { id: 'jt-1c1', featureId: 'feat-1c', jiraKey: '', issueType: 'Story', title: 'Design sharding key strategy', description: '', jiraProject: 'DOMO', status: 'draft', createdAt: '2026-03-15T00:00:00Z' },
 
-    // Analytics - Real-time (synced)
-    { id: 'jt-2a1', featureId: 'feat-2a', jiraKey: 'DOMO-481051', issueType: 'Story', title: 'WebSocket server infrastructure', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-02-20T00:00:00Z' },
-    // Custom Widgets (drafts)
+    // Analytics - Real-time (synced, green)
+    { id: 'jt-2a1', featureId: 'feat-2a', jiraKey: 'DOMO-481051', issueType: 'Story', title: 'WebSocket server infrastructure', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-02-20T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Lisa Wang' },
+    // Custom Widgets (drafts — gray)
     { id: 'jt-2b1', featureId: 'feat-2b', jiraKey: '', issueType: 'Story', title: 'Widget drag-and-drop framework', description: '', jiraProject: 'DOMO', status: 'draft', createdAt: '2026-03-20T00:00:00Z' },
     { id: 'jt-2b2', featureId: 'feat-2b', jiraKey: '', issueType: 'Mock', title: 'Widget builder UI mockups', description: 'Design all widget builder screens.', jiraProject: 'DOMO', status: 'draft', createdAt: '2026-03-22T00:00:00Z' },
-    // Dashboard Templates (synced)
-    { id: 'jt-2d1', featureId: 'feat-2d', jiraKey: 'DOMO-481055', issueType: 'Story', title: 'Template engine implementation', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-03-05T00:00:00Z' },
+    // Dashboard Templates (synced, green)
+    { id: 'jt-2d1', featureId: 'feat-2d', jiraKey: 'DOMO-481055', issueType: 'Story', title: 'Template engine implementation', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-03-05T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'David Kim' },
 
-    // API Gateway - Rate Limiting (synced)
-    { id: 'jt-4a1', featureId: 'feat-4a', jiraKey: 'DOMO-480901', issueType: 'Story', title: 'Sliding window rate limiter', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2025-10-05T00:00:00Z' },
-    // Auth Tokens (synced)
-    { id: 'jt-4b1', featureId: 'feat-4b', jiraKey: 'DOMO-480910', issueType: 'Story', title: 'JWT generation and validation', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2025-11-05T00:00:00Z' },
-    // Documentation Portal (synced)
-    { id: 'jt-4c1', featureId: 'feat-4c', jiraKey: 'DOMO-480920', issueType: 'Story', title: 'Auto-gen API docs from OpenAPI spec', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2025-12-10T00:00:00Z' },
+    // API Gateway - Rate Limiting (synced, green)
+    { id: 'jt-4a1', featureId: 'feat-4a', jiraKey: 'DOMO-480901', issueType: 'Story', title: 'Sliding window rate limiter', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2025-10-05T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Alex Rivera' },
+    // Auth Tokens (synced, green)
+    { id: 'jt-4b1', featureId: 'feat-4b', jiraKey: 'DOMO-480910', issueType: 'Story', title: 'JWT generation and validation', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2025-11-05T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Alex Rivera' },
+    // Documentation Portal (synced, green)
+    { id: 'jt-4c1', featureId: 'feat-4c', jiraKey: 'DOMO-480920', issueType: 'Story', title: 'Auto-gen API docs from OpenAPI spec', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2025-12-10T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Priya Sharma' },
 
-    // Data Pipeline - Kafka (synced)
-    { id: 'jt-5a1', featureId: 'feat-5a', jiraKey: 'DOMO-481101', issueType: 'Story', title: 'Kafka consumer service setup', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-03-20T00:00:00Z' },
-    // ETL (draft)
+    // Data Pipeline - Kafka (synced, green)
+    { id: 'jt-5a1', featureId: 'feat-5a', jiraKey: 'DOMO-481101', issueType: 'Story', title: 'Kafka consumer service setup', description: '', jiraProject: 'DOMO', status: 'synced', createdAt: '2026-03-20T00:00:00Z', lastSyncedAt: '2026-04-14T08:00:00Z', assignee: 'Raj Patel' },
+    // ETL (draft — gray)
     { id: 'jt-5b1', featureId: 'feat-5b', jiraKey: '', issueType: 'Story', title: 'Spark ETL pipeline POC', description: '', jiraProject: 'DOMO', status: 'draft', createdAt: '2026-04-01T00:00:00Z' },
-    // Monitoring (draft)
+    // Monitoring (draft — gray, feature modified after → yellow when synced)
     { id: 'jt-5d1', featureId: 'feat-5d', jiraKey: '', issueType: 'Bug', title: 'Fix pipeline throughput metric calculation', description: 'Throughput metric underreporting by ~15%.', jiraProject: 'DOMO', status: 'draft', createdAt: '2026-04-05T00:00:00Z' }
   ];
 
@@ -1475,7 +1803,13 @@ function getSampleData() {
 
 // ===== INITIALIZATION =====
 async function init() {
-  await DataService.init();
+  try {
+    await DataService.init();
+  } catch (e) {
+    // DataService.init crashed — force localStorage so app still works
+    state.useLocalStorage = true;
+    console.warn('Storage init failed:', e);
+  }
 
   // Load data
   state.projects = await DataService.getAll(CONFIG.collections.projects);
