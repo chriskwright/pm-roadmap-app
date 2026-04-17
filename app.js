@@ -99,6 +99,7 @@ const state = {
   statusFilter: 'all',
   searchQuery: '',
   collapsedProjects: new Set(),
+  collapsedEpics: new Set(),
   loading: true,
   useLocalStorage: false
 };
@@ -413,12 +414,24 @@ const JiraService = {
   },
 
   async pushTicket(ticket, epicKey) {
-    return this.createLinkedIssue(
-      ticket.issueType,
-      ticket.title,
-      ticket.description || '',
-      epicKey
-    );
+    const fields = {
+      project: { key: CONFIG.jiraProject },
+      summary: ticket.title,
+      issuetype: { name: ticket.issueType }
+    };
+    if (ticket.description) fields.description = ticket.description;
+    if (epicKey) fields[CONFIG.customFields.epicLink] = epicKey;
+    if (ticket.squad) {
+      try {
+        fields[CONFIG.customFields.squad] = { value: ticket.squad };
+        return await this.createIssue(fields);
+      } catch (e) {
+        // Retry without squad if rejected
+        delete fields[CONFIG.customFields.squad];
+        return this.createIssue(fields);
+      }
+    }
+    return this.createIssue(fields);
   },
 
   async transitionIssue(jiraKey, transitionId) {
@@ -641,6 +654,8 @@ function renderProjectGroup(project, index) {
             <span class="project-progress-pct">${pct}%</span>
           </div>
           <div class="project-header-actions">
+            <button class="btn-icon" data-action="move-project-up" data-project-id="${project.id}" title="Move up">&#8593;</button>
+            <button class="btn-icon" data-action="move-project-down" data-project-id="${project.id}" title="Move down">&#8595;</button>
             <button class="btn-icon" data-action="refresh-project" data-project-id="${project.id}" title="Refresh from Jira">&#x1F504;</button>
             <button class="btn-icon" data-action="edit-project" data-project-id="${project.id}" title="Edit project">&#9998;</button>
             <button class="btn-icon" data-action="delete-project" data-project-id="${project.id}" title="Delete project">&#128465;</button>
@@ -648,50 +663,109 @@ function renderProjectGroup(project, index) {
         </div>
         ${project.description ? `<div class="project-description">${Utils.escapeHtml(project.description)}</div>` : ''}
       </div>
-      <div class="project-collapse-body">
-        <div class="project-collapse-inner">
-          <div class="project-body">
-            ${filtered.map(f => renderFeatureCard(f, color)).join('')}
-            <div class="add-feature-card" data-action="add-feature" data-project-id="${project.id}">
-              + Add Item
-            </div>
-          </div>
-          ${draftCount > 0 ? `
-            <div class="push-all-bar">
-              <span><span class="draft-count">${draftCount}</span> draft ticket${draftCount !== 1 ? 's' : ''} ready to push</span>
-              <button class="btn btn-sm btn-success" data-action="push-all-project" data-project-id="${project.id}">
-                Push All to Jira
-              </button>
-            </div>` : ''}
-        </div>
+      <div class="project-body-wrap ${isCollapsed ? 'collapsed' : ''}">
+        <div class="project-body">${renderTwoLanes(filtered, project)}</div>
       </div>
     </div>`;
 }
 
-function renderFeatureCard(feature, projectColor) {
+function renderTwoLanes(items, project) {
+  const epics = items.filter(f => f.type === 'Epic').sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const otherItems = items.filter(f => f.type !== 'Epic' && !f.parentEpicId).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const epicCount = epics.length;
+  const otherCount = otherItems.length;
+
+  return `
+    <div class="lane">
+      <div class="lane-header">
+        <span class="lane-label">EPICS</span>
+        <span class="lane-count">${epicCount}</span>
+        <div class="lane-actions">
+          <button class="btn btn-sm btn-secondary" data-action="add-epic" data-project-id="${project.id}">+ Add Epic</button>
+        </div>
+      </div>
+      <div class="lane-body">
+        ${epicCount > 0 ? epics.map(epic => renderEpicContainer(epic, items, project)).join('') : `
+          <div class="lane-empty">No epics yet — add one to group related items</div>
+        `}
+      </div>
+    </div>
+    <div class="lane">
+      <div class="lane-header">
+        <span class="lane-label">OTHER ITEMS</span>
+        <span class="lane-count">${otherCount}</span>
+        <div class="lane-actions">
+          <button class="btn btn-sm btn-secondary" data-action="add-other-item" data-project-id="${project.id}">+ Add</button>
+        </div>
+      </div>
+      <div class="lane-body">
+        ${otherCount > 0 ? otherItems.map(item => renderItemRow(item)).join('') : `
+          <div class="lane-empty">No other items</div>
+        `}
+      </div>
+    </div>`;
+}
+
+function renderEpicContainer(epic, allItems, project) {
+  const children = allItems.filter(f => f.parentEpicId === epic.id && f.type !== 'Epic').sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+  const isCollapsed = state.collapsedEpics.has(epic.id);
+  const typeColor = Utils.getTypeColor('Epic');
+
+  return `
+    <div class="epic-container" data-epic-id="${epic.id}">
+      <div class="epic-accent"></div>
+      <div class="epic-content">
+        <div class="epic-header" data-action="toggle-epic" data-feature-id="${epic.id}">
+          <span class="epic-caret ${isCollapsed ? 'collapsed' : ''}">&#9660;</span>
+          <span class="epic-title">${Utils.escapeHtml(epic.name)}</span>
+          <span class="badge ${Utils.getStatusBadgeClass(epic.status)}">${epic.status}</span>
+          <span class="epic-child-count ${children.length === 0 ? 'empty' : ''}">${children.length} child${children.length !== 1 ? 'ren' : ''}</span>
+          ${epic.squad ? `<span class="epic-meta">${Utils.escapeHtml(epic.squad)}</span>` : ''}
+          ${epic.jiraKey ? `<a class="jira-item-link" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(epic.jiraKey)}">${Utils.escapeHtml(epic.jiraKey)}</a>` : ''}
+          ${epic.mockLink ? `<a class="mock-link" href="${Utils.escapeHtml(epic.mockLink)}" title="${Utils.escapeHtml(epic.mockLink)}">Mock</a>` : ''}
+          <div class="epic-header-actions">
+            <button class="btn-icon" data-action="move-item-up" data-feature-id="${epic.id}" title="Move up">&#9650;</button>
+            <button class="btn-icon" data-action="move-item-down" data-feature-id="${epic.id}" title="Move down">&#9660;</button>
+            <button class="btn-icon" data-action="edit-feature" data-feature-id="${epic.id}" title="Edit">&#9998;</button>
+            <button class="btn-icon" data-action="delete-item" data-feature-id="${epic.id}" title="Delete">&#128465;</button>
+          </div>
+        </div>
+        ${epic.description ? `<div class="epic-desc">${Utils.escapeHtml(epic.description)}</div>` : ''}
+          <div class="epic-body" style="${isCollapsed ? 'max-height:0;overflow:hidden' : ''}">
+            ${children.length > 0 ? children.map(child => renderItemRow(child)).join('') : `
+              <div class="epic-empty">No child items — add stories, bugs, or improvements</div>
+            `}
+            <div class="add-child-card" data-action="add-child-item" data-project-id="${epic.projectId}" data-epic-id="${epic.id}">
+              + Add child item
+            </div>
+          </div>
+      </div>
+    </div>`;
+}
+
+function renderItemRow(feature) {
   const itemType = feature.type || 'Story';
   const typeColor = Utils.getTypeColor(itemType);
 
   return `
-    <div class="feature-card" data-action="edit-feature" data-feature-id="${feature.id}">
-      <div class="feature-card-priority-line" style="background:${typeColor}"></div>
-      <div class="feature-card-top">
-        <span class="feature-card-name">${Utils.escapeHtml(feature.name)}</span>
-        <div class="feature-card-badges">
-          <span class="badge-type" style="background:${typeColor}15;color:${typeColor};border:1px solid ${typeColor}30">${itemType}</span>
-          <span class="badge ${Utils.getStatusBadgeClass(feature.status)}">${feature.status}</span>
-        </div>
+    <div class="item-row" data-action="edit-feature" data-feature-id="${feature.id}">
+      <div class="item-row-type" style="background:${typeColor}15;color:${typeColor}">${itemType}</div>
+      <div class="item-row-name">${Utils.escapeHtml(feature.name)}</div>
+      <div class="item-row-status"><span class="badge ${Utils.getStatusBadgeClass(feature.status)}">${feature.status}</span></div>
+      <div class="item-row-squad">${feature.squad ? Utils.escapeHtml(feature.squad) : ''}</div>
+      <div class="item-row-dates">
+        ${Utils.formatDate(feature.startDate)} <span class="date-sep">&#8594;</span> ${Utils.formatDate(feature.endDate)}
       </div>
-      ${feature.description ? `<div class="feature-card-desc">${Utils.escapeHtml(feature.description)}</div>` : ''}
-      <div class="feature-card-bottom">
-        <span class="feature-card-dates">
-          ${Utils.formatDate(feature.startDate)}
-          <span class="date-sep">&#8594;</span>
-          ${Utils.formatDate(feature.endDate)}
-        </span>
-        <div class="feature-card-jira">
-          ${feature.jiraKey ? `<a class="jira-item-link" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(feature.jiraKey)}" target="_blank" onclick="event.stopPropagation()">${Utils.escapeHtml(feature.jiraKey)}</a>` : ''}
-        </div>
+      <div class="item-row-mock">
+        ${feature.mockLink ? `<a class="mock-link" href="${Utils.escapeHtml(feature.mockLink)}" title="${Utils.escapeHtml(feature.mockLink)}">Mock</a>` : ''}
+      </div>
+      <div class="item-row-jira">
+        ${feature.jiraKey ? `<a class="jira-item-link" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(feature.jiraKey)}">${Utils.escapeHtml(feature.jiraKey)}</a>` : ''}
+      </div>
+      <div class="item-row-actions">
+        <button class="btn-icon" data-action="move-item-up" data-feature-id="${feature.id}" title="Move up">&#9650;</button>
+        <button class="btn-icon" data-action="move-item-down" data-feature-id="${feature.id}" title="Move down">&#9660;</button>
+        <button class="btn-icon" data-action="edit-feature" data-feature-id="${feature.id}" title="Edit">&#9998;</button>
       </div>
     </div>`;
 }
@@ -961,7 +1035,26 @@ function openProjectModal(projectId) {
           await DataService.update(CONFIG.collections.projects, doc);
           const idx = state.projects.findIndex(p => p.id === doc.id);
           if (idx >= 0) state.projects[idx] = doc;
-          Toast.success('Project updated');
+          // Sync name/description to Jira Epic if it exists
+          if (doc.epicKey) {
+            const nameChanged = name !== (project.name || '');
+            const descChanged = doc.description !== (project.description || '');
+            if (nameChanged || descChanged) {
+              try {
+                const fields = {};
+                if (nameChanged) { fields.summary = name; fields[CONFIG.customFields.epicName] = name; }
+                if (descChanged) fields.description = doc.description;
+                await JiraService.updateIssueFields(doc.epicKey, fields);
+                Toast.success('Project and Jira Epic updated');
+              } catch (e) {
+                Toast.warning('Project saved but Jira Epic update failed');
+              }
+            } else {
+              Toast.success('Project updated');
+            }
+          } else {
+            Toast.success('Project updated');
+          }
         } else {
           await DataService.create(CONFIG.collections.projects, doc);
           state.projects.push(doc);
@@ -1001,9 +1094,10 @@ function openProjectModal(projectId) {
 }
 
 // ===== MODALS: FEATURE (with Jira Panel) =====
-function openFeatureModal(featureId, projectId) {
+function openFeatureModal(featureId, projectId, opts) {
+  opts = opts || {};
   const isEdit = !!featureId;
-  const feature = isEdit ? state.features.find(f => f.id === featureId) : { projectId };
+  const feature = isEdit ? state.features.find(f => f.id === featureId) : { projectId, type: opts.forceType || 'Story', parentEpicId: opts.parentEpicId || '' };
   const project = state.projects.find(p => p.id === (feature.projectId || projectId));
   const tickets = isEdit ? getFeatureTickets(feature.id) : [];
 
@@ -1066,6 +1160,13 @@ function openFeatureModal(featureId, projectId) {
               <label class="form-label">Description</label>
               <textarea class="form-textarea" id="jt-desc" placeholder="Optional description" rows="2"></textarea>
             </div>
+            <div class="form-group">
+              <label class="form-label">Squad</label>
+              <select class="form-select" id="jt-squad">
+                <option value="">— None —</option>
+                ${CONFIG.squads.map(s => `<option value="${s}" ${(feature.squad || (project && project.squad) || '') === s ? 'selected' : ''}>${s}</option>`).join('')}
+              </select>
+            </div>
             <div style="display:flex;gap:8px;justify-content:flex-end">
               <button class="btn btn-sm btn-secondary" id="jt-cancel">Cancel</button>
               <button class="btn btn-sm btn-primary" id="jt-save">Save Draft</button>
@@ -1079,7 +1180,7 @@ function openFeatureModal(featureId, projectId) {
 
   Modal.open(`
     <div class="modal-header">
-      <div class="modal-title">${isEdit ? 'Edit Item' : 'New Item'}</div>
+      <div class="modal-title">${isEdit ? 'Edit Item' : (opts.forceType === 'Epic' ? 'New Epic' : (opts.parentEpicId ? 'New Child Item' : 'New Item'))}</div>
       <button class="modal-close" data-action="modal-close">&times;</button>
     </div>
     <div class="modal-body">
@@ -1091,13 +1192,13 @@ function openFeatureModal(featureId, projectId) {
       <div class="form-group">
         <label class="form-label">Description</label>
         <textarea class="form-textarea" id="feat-desc" placeholder="Describe this item..."
-          rows="2">${Utils.escapeHtml(feature.description || '')}</textarea>
+          rows="5">${Utils.escapeHtml(feature.description || '')}</textarea>
       </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Type</label>
-          <select class="form-select" id="feat-type">
-            ${CONFIG.itemTypes.map(t => `<option value="${t}" ${(feature.type || 'Story') === t ? 'selected' : ''}>${t}</option>`).join('')}
+          <select class="form-select" id="feat-type" ${opts.forceType === 'Epic' ? 'disabled' : ''}>
+            ${(feature.parentEpicId ? CONFIG.itemTypes.filter(t => t !== 'Epic') : CONFIG.itemTypes).map(t => `<option value="${t}" ${(feature.type || 'Story') === t ? 'selected' : ''}>${t}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
@@ -1125,6 +1226,11 @@ function openFeatureModal(featureId, projectId) {
           <input class="form-input" type="date" id="feat-end"
             value="${Utils.formatDateInput(feature.endDate)}">
         </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mock Link</label>
+        <input class="form-input" id="feat-mocklink" placeholder="Paste Figma link here..."
+          value="${Utils.escapeHtml(feature.mockLink || '')}">
       </div>
       ${hasJiraKey ? `
         <div class="form-group">
@@ -1163,12 +1269,15 @@ function openFeatureModal(featureId, projectId) {
         const newStatus = modal.querySelector('#feat-status').value;
         const newDesc = modal.querySelector('#feat-desc').value.trim();
         const newType = modal.querySelector('#feat-type').value;
+        const newMockLink = modal.querySelector('#feat-mocklink').value.trim();
         const doc = {
           id: isEdit ? feature.id : Utils.id(),
           _docId: isEdit ? feature._docId : undefined,
           projectId: feature.projectId || projectId,
+          parentEpicId: isEdit ? (feature.parentEpicId || '') : (feature.parentEpicId || ''),
           name,
           description: newDesc,
+          mockLink: newMockLink,
           status: newStatus,
           type: newType,
           squad: modal.querySelector('#feat-squad').value,
@@ -1190,7 +1299,12 @@ function openFeatureModal(featureId, projectId) {
               summary: name,
               issuetype: { name: jiraType }
             };
-            if (newDesc) fields.description = newDesc;
+            // Build description with mock link appended
+            let jiraDesc = newDesc || '';
+            if (newMockLink) {
+              jiraDesc = jiraDesc ? jiraDesc + '\n\nMock Link: ' + newMockLink : 'Mock Link: ' + newMockLink;
+            }
+            if (jiraDesc) fields.description = jiraDesc;
             if (project && project.epicKey && jiraType !== 'Epic') {
               fields[CONFIG.customFields.epicLink] = project.epicKey;
             }
@@ -1235,31 +1349,30 @@ function openFeatureModal(featureId, projectId) {
         const fIdx = state.features.findIndex(f => f.id === doc.id);
         if (fIdx >= 0) state.features[fIdx] = { ...doc };
 
-        // Jira sync for synced tickets
+        // Collect all Jira keys to sync: item's own key + old-model synced tickets
+        const jiraKeysToSync = [];
+        if (doc.jiraKey) jiraKeysToSync.push(doc.jiraKey);
         const syncedTickets = state.jiraTickets.filter(
           t => t.featureId === feature.id && t.status === 'synced' && t.jiraKey
         );
+        syncedTickets.forEach(t => { if (!jiraKeysToSync.includes(t.jiraKey)) jiraKeysToSync.push(t.jiraKey); });
+
         let jiraOk = true;
         let jiraSynced = false;
 
         // 1. Status transition
-        if (oldStatus !== newStatus && syncedTickets.length > 0) {
+        if (oldStatus !== newStatus && jiraKeysToSync.length > 0) {
           const transKey = `${oldStatus}->${newStatus}`;
           const transitionId = CONFIG.transitionMap[transKey];
           if (transitionId) {
             try {
-              for (const ticket of syncedTickets) {
-                await JiraService.transitionIssue(ticket.jiraKey, transitionId);
-                ticket.lastSyncedAt = now;
-                await DataService.update(CONFIG.collections.jiraTickets, ticket);
-                const tIdx = state.jiraTickets.findIndex(t => t.id === ticket.id);
-                if (tIdx >= 0) state.jiraTickets[tIdx] = { ...ticket };
+              for (const jk of jiraKeysToSync) {
+                await JiraService.transitionIssue(jk, transitionId);
               }
               jiraSynced = true;
               Toast.success('Status synced to Jira');
             } catch (e) {
               jiraOk = false;
-              // Revert status locally
               doc.status = oldStatus;
               await DataService.update(CONFIG.collections.features, doc);
               if (fIdx >= 0) state.features[fIdx] = { ...doc };
@@ -1268,31 +1381,33 @@ function openFeatureModal(featureId, projectId) {
           }
         }
 
-        // 2. Field push (title/description)
-        if (jiraOk && syncedTickets.length > 0) {
+        // 2. Field push (title/description/mock link)
+        if (jiraOk && jiraKeysToSync.length > 0) {
           const nameChanged = name !== (feature.name || '');
           const descChanged = newDesc !== (feature.description || '');
-          if (nameChanged || descChanged) {
+          const mockChanged = newMockLink !== (feature.mockLink || '');
+          if (nameChanged || descChanged || mockChanged) {
             try {
-              for (const ticket of syncedTickets) {
+              // Build Jira description with mock link
+              let jiraDesc = newDesc || '';
+              if (newMockLink) {
+                jiraDesc = jiraDesc ? jiraDesc + '\n\nMock Link: ' + newMockLink : 'Mock Link: ' + newMockLink;
+              }
+              for (const jk of jiraKeysToSync) {
                 const fields = {};
                 if (nameChanged) fields.summary = name;
-                if (descChanged) fields.description = newDesc;
-                await JiraService.updateIssueFields(ticket.jiraKey, fields);
-                ticket.lastSyncedAt = now;
-                await DataService.update(CONFIG.collections.jiraTickets, ticket);
-                const tIdx = state.jiraTickets.findIndex(t => t.id === ticket.id);
-                if (tIdx >= 0) state.jiraTickets[tIdx] = { ...ticket };
+                if (descChanged || mockChanged) fields.description = jiraDesc;
+                await JiraService.updateIssueFields(jk, fields);
               }
               if (!jiraSynced) Toast.success('Synced to Jira');
               jiraSynced = true;
             } catch (e) {
-              // Non-critical — feature saved, Jira field push failed
+              Toast.warning('Item saved but Jira field update failed');
             }
           }
         }
 
-        if (!jiraSynced) Toast.success('Feature updated');
+        if (!jiraSynced) Toast.success('Item updated');
         Modal.close();
         render();
       });
@@ -1353,6 +1468,7 @@ function openFeatureModal(featureId, projectId) {
               issueType: modal.querySelector('#jt-type').value,
               title,
               description: modal.querySelector('#jt-desc').value.trim(),
+              squad: modal.querySelector('#jt-squad').value,
               jiraProject: CONFIG.jiraProject,
               status: 'draft',
               createdAt: new Date().toISOString()
@@ -1591,6 +1707,8 @@ function getDraftCountForProject(projectId) {
 
 function getFilteredProjects() {
   let projects = [...state.projects];
+  // Sort by sortOrder (lower first), fallback to creation order
+  projects.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
 
   if (state.searchQuery) {
     const q = state.searchQuery.toLowerCase();
@@ -1654,22 +1772,20 @@ function render() {
 }
 
 // ===== EVENT BINDING =====
+let _eventsBound = false;
 function bindEvents() {
   const app = document.getElementById('app');
+  if (_eventsBound) return;
+  _eventsBound = true;
 
-  // Delegate clicks
+  // Delegate clicks — bound ONCE, survives render() since app element persists
   app.addEventListener('click', (e) => {
-    // Clicks on Jira links — copy URL to clipboard (iframe sandbox blocks popups)
-    const clickedLink = e.target.closest('a[href]');
-    if (clickedLink) {
-      e.preventDefault();
+    // Links — Cmd/Ctrl+Click opens in new tab, plain click does nothing
+    if (e.target.closest('a[href]')) {
+      if (!e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+      }
       e.stopPropagation();
-      const href = clickedLink.getAttribute('href');
-      navigator.clipboard.writeText(href).then(() => {
-        Toast.success('Copied: ' + href);
-      }).catch(() => {
-        Toast.info(href);
-      });
       return;
     }
     const target = e.target.closest('[data-action]');
@@ -1713,34 +1829,134 @@ function bindEvents() {
           });
         }
         break;
+      case 'move-project-up':
+      case 'move-project-down':
+        e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
+        e.preventDefault();
+        (async () => {
+          // Assign sequential sortOrder based on current position
+          const sorted = [...state.projects].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+          sorted.forEach((p, i) => { p.sortOrder = i; });
+          const idx = sorted.findIndex(p => p.id === target.dataset.projectId);
+          const swapIdx = action === 'move-project-up' ? idx - 1 : idx + 1;
+          if (idx < 0 || swapIdx < 0 || swapIdx >= sorted.length) return;
+          // Swap
+          const temp = sorted[idx].sortOrder;
+          sorted[idx].sortOrder = sorted[swapIdx].sortOrder;
+          sorted[swapIdx].sortOrder = temp;
+          // Save both
+          await DataService.update(CONFIG.collections.projects, sorted[idx]);
+          await DataService.update(CONFIG.collections.projects, sorted[swapIdx]);
+          const si = state.projects.findIndex(p => p.id === sorted[idx].id);
+          const oi = state.projects.findIndex(p => p.id === sorted[swapIdx].id);
+          if (si >= 0) state.projects[si] = { ...sorted[idx] };
+          if (oi >= 0) state.projects[oi] = { ...sorted[swapIdx] };
+          render();
+        })();
+        break;
       case 'toggle-project':
-        const pid = target.dataset.projectId;
-        const group = document.querySelector(`.project-group[data-project-id="${pid}"]`);
-        if (state.collapsedProjects.has(pid)) {
-          state.collapsedProjects.delete(pid);
-          if (group) group.classList.remove('collapsed');
-        } else {
-          state.collapsedProjects.add(pid);
-          if (group) group.classList.add('collapsed');
+        {
+          const tpid = target.dataset.projectId;
+          if (state.collapsedProjects.has(tpid)) {
+            state.collapsedProjects.delete(tpid);
+          } else {
+            state.collapsedProjects.add(tpid);
+          }
+          const grp = document.querySelector(`.project-group[data-project-id="${tpid}"]`);
+          if (grp) {
+            grp.classList.toggle('collapsed', state.collapsedProjects.has(tpid));
+            const wrap = grp.querySelector('.project-body-wrap');
+            if (wrap) wrap.classList.toggle('collapsed', state.collapsedProjects.has(tpid));
+          }
         }
         break;
       case 'toggle-collapse-all':
-        if (state.collapsedProjects.size > 0) {
-          state.collapsedProjects.clear();
-        } else {
-          state.projects.forEach(p => state.collapsedProjects.add(p.id));
+        {
+          if (state.collapsedProjects.size > 0) {
+            state.collapsedProjects.clear();
+          } else {
+            state.projects.forEach(p => state.collapsedProjects.add(p.id));
+          }
+          const isNowCollapsed = state.collapsedProjects.size > 0;
+          document.querySelectorAll('.project-group').forEach(g => {
+            g.classList.toggle('collapsed', isNowCollapsed);
+            const w = g.querySelector('.project-body-wrap');
+            if (w) w.classList.toggle('collapsed', isNowCollapsed);
+          });
+          document.querySelectorAll('[data-action="toggle-collapse-all"]').forEach(btn => {
+            btn.textContent = isNowCollapsed ? 'Expand All' : 'Collapse All';
+          });
         }
-        // Apply to all current DOM groups
-        document.querySelectorAll('.project-group').forEach(g => {
-          g.classList.toggle('collapsed', state.collapsedProjects.size > 0);
-        });
-        // Update button text (find fresh reference)
-        document.querySelectorAll('[data-action="toggle-collapse-all"]').forEach(btn => {
-          btn.textContent = state.collapsedProjects.size > 0 ? 'Expand All' : 'Collapse All';
-        });
+        break;
+      case 'toggle-epic':
+        {
+          const epicId = target.dataset.featureId;
+          if (state.collapsedEpics.has(epicId)) {
+            state.collapsedEpics.delete(epicId);
+          } else {
+            state.collapsedEpics.add(epicId);
+          }
+          const container = document.querySelector(`.epic-container[data-epic-id="${epicId}"]`);
+          if (container) {
+            const isNowCollapsed = state.collapsedEpics.has(epicId);
+            const caret = container.querySelector('.epic-caret');
+            const body = container.querySelector('.epic-body');
+            if (caret) caret.classList.toggle('collapsed', isNowCollapsed);
+            if (body) {
+              if (isNowCollapsed) {
+                body.style.maxHeight = body.scrollHeight + 'px';
+                requestAnimationFrame(() => { body.style.maxHeight = '0'; });
+              } else {
+                body.style.maxHeight = body.scrollHeight + 'px';
+                setTimeout(() => { body.style.maxHeight = 'none'; }, 300);
+              }
+            }
+          }
+        }
+        break;
+      case 'move-item-up':
+      case 'move-item-down':
+        e.stopPropagation();
+        (async () => {
+          const item = state.features.find(f => f.id === target.dataset.featureId);
+          if (!item) return;
+          const siblings = state.features.filter(f => {
+            if (f.projectId !== item.projectId) return false;
+            if (item.type === 'Epic') return f.type === 'Epic';
+            if (item.parentEpicId) return f.parentEpicId === item.parentEpicId && f.type !== 'Epic';
+            return !f.parentEpicId && f.type !== 'Epic';
+          }).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+          // Assign sequential sortOrder based on current position
+          siblings.forEach((s, i) => { s.sortOrder = i; });
+          const idx = siblings.findIndex(f => f.id === item.id);
+          const swapIdx = action === 'move-item-up' ? idx - 1 : idx + 1;
+          if (idx < 0 || swapIdx < 0 || swapIdx >= siblings.length) return;
+          const other = siblings[swapIdx];
+          const temp = item.sortOrder;
+          item.sortOrder = other.sortOrder;
+          other.sortOrder = temp;
+          await DataService.update(CONFIG.collections.features, item);
+          await DataService.update(CONFIG.collections.features, other);
+          const si = state.features.findIndex(f => f.id === item.id);
+          const oi = state.features.findIndex(f => f.id === other.id);
+          if (si >= 0) state.features[si] = { ...item };
+          if (oi >= 0) state.features[oi] = { ...other };
+          render();
+        })();
         break;
       case 'add-feature':
         openFeatureModal(null, target.dataset.projectId);
+        break;
+      case 'add-epic':
+        openFeatureModal(null, target.dataset.projectId, { forceType: 'Epic' });
+        break;
+      case 'add-other-item':
+        openFeatureModal(null, target.dataset.projectId, { forceType: 'Story' });
+        break;
+      case 'add-child-item':
+        openFeatureModal(null, target.dataset.projectId, { parentEpicId: target.dataset.epicId, forceType: 'Story' });
         break;
       case 'edit-feature':
         openFeatureModal(target.dataset.featureId, null);
@@ -2016,6 +2232,10 @@ async function init() {
     state.features = sample.features;
     state.jiraTickets = sample.jiraTickets;
   }
+
+  // Collapse all projects and epics by default
+  state.projects.forEach(p => state.collapsedProjects.add(p.id));
+  state.features.filter(f => f.type === 'Epic').forEach(f => state.collapsedEpics.add(f.id));
 
   state.loading = false;
   render();
