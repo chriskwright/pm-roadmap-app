@@ -631,6 +631,18 @@ html, body {
   flex-shrink: 0;
 }
 
+.project-squad-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #0369A1;
+  background: #DBEAFE;
+  border-radius: 4px;
+  border: 1px solid #BFDBFE;
+}
+
 .project-epic-badge {
   display: inline-flex;
   align-items: center;
@@ -643,6 +655,11 @@ html, body {
   background: #F3E8FF;
   border-radius: 4px;
   border: 1px solid #E9D5FF;
+  text-decoration: none;
+}
+.project-epic-badge:hover {
+  text-decoration: underline;
+  background: #EDE9FE;
 }
 
 .project-body {
@@ -769,6 +786,46 @@ html, body {
   background: #F3E8FF;
   color: var(--jira-epic);
   border: 1px solid #E9D5FF;
+}
+
+/* Type badges */
+.badge-type {
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  line-height: 16px;
+  text-transform: capitalize;
+}
+
+/* Jira item link on cards */
+.jira-item-link {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--jira-epic);
+  text-decoration: none;
+  background: #F3E8FF;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid #E9D5FF;
+}
+.jira-item-link:hover { text-decoration: underline; }
+
+/* Jira link in modal */
+.jira-item-link-large {
+  font-size: 13px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--jira-epic);
+  text-decoration: none;
+}
+.jira-item-link-large:hover { text-decoration: underline; }
+
+.jira-epic-ref {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 8px;
 }
 
 /* Sync indicators */
@@ -1326,10 +1383,10 @@ a.jira-ticket-key:hover {
 /* ===== TOAST NOTIFICATIONS ===== */
 #toast-container {
   position: fixed;
-  bottom: 20px;
+  top: 64px;
   right: 20px;
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   gap: 8px;
   z-index: 1000;
   pointer-events: none;

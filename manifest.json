@@ -1,6 +1,6 @@
 {
   "name": "PM Roadmap App",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "size": {
     "width": 1,
     "height": 1
@@ -13,7 +13,9 @@
     "jira": {
       "url": "https://onjira.domo.com",
       "headers": {
-        "Authorization": "Bearer ${JIRA_PAT}"
+        "Authorization": "Bearer ${JIRA_PAT}",
+        "Accept": "application/json",
+        "Content-Type": "application/json"
       }
     }
   }
