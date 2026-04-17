@@ -749,7 +749,7 @@ function renderItemRow(feature) {
 
   return `
     <div class="item-row" data-action="edit-feature" data-feature-id="${feature.id}">
-      <div class="item-row-type" style="background:${typeColor}15;color:${typeColor}">${itemType}</div>
+      <div class="item-row-type" data-type="${itemType}">${itemType}</div>
       <div class="item-row-name">${Utils.escapeHtml(feature.name)}</div>
       <div class="item-row-status"><span class="badge ${Utils.getStatusBadgeClass(feature.status)}">${feature.status}</span></div>
       <div class="item-row-squad">${feature.squad ? Utils.escapeHtml(feature.squad) : ''}</div>
@@ -1177,6 +1177,8 @@ function openFeatureModal(featureId, projectId, opts) {
   }
 
   const hasJiraKey = isEdit && feature.jiraKey;
+  const parentEpic = feature.parentEpicId ? state.features.find(f => f.id === feature.parentEpicId) : null;
+  const epicLinkKey = (parentEpic && parentEpic.jiraKey) || (project && project.epicKey) || '';
 
   Modal.open(`
     <div class="modal-header">
@@ -1232,19 +1234,24 @@ function openFeatureModal(featureId, projectId, opts) {
         <input class="form-input" id="feat-mocklink" placeholder="Paste Figma link here..."
           value="${Utils.escapeHtml(feature.mockLink || '')}">
       </div>
+      ${epicLinkKey && feature.type !== 'Epic' ? `
+        <div class="form-group">
+          <label class="form-label">Epic Link</label>
+          <span class="epic-link-readonly">${Utils.escapeHtml(epicLinkKey)}</span>
+        </div>
+      ` : ''}
       ${hasJiraKey ? `
         <div class="form-group">
           <label class="form-label">Jira Issue</label>
           <a class="jira-item-link-large" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(feature.jiraKey)}" target="_blank">
             ${Utils.escapeHtml(feature.jiraKey)}
           </a>
-          ${project && project.epicKey ? `<span class="jira-epic-ref">linked to ${Utils.escapeHtml(project.epicKey)}</span>` : ''}
         </div>
       ` : `
         <div class="form-group">
           <label class="form-checkbox">
             <input type="checkbox" id="feat-create-jira">
-            Create Jira issue${project && project.epicKey ? ' (linked to Epic ' + Utils.escapeHtml(project.epicKey) + ')' : ''}
+            Create Jira issue${epicLinkKey ? ' (linked to ' + Utils.escapeHtml(epicLinkKey) + ')' : ''}
           </label>
         </div>
       `}
@@ -1305,8 +1312,13 @@ function openFeatureModal(featureId, projectId, opts) {
               jiraDesc = jiraDesc ? jiraDesc + '\n\nMock Link: ' + newMockLink : 'Mock Link: ' + newMockLink;
             }
             if (jiraDesc) fields.description = jiraDesc;
-            if (project && project.epicKey && jiraType !== 'Epic') {
-              fields[CONFIG.customFields.epicLink] = project.epicKey;
+            // Link to parent epic's Jira key (child item) or project's epic key (standalone)
+            if (jiraType !== 'Epic') {
+              const parentEpic = doc.parentEpicId ? state.features.find(f => f.id === doc.parentEpicId) : null;
+              const epicJiraKey = (parentEpic && parentEpic.jiraKey) || (project && project.epicKey) || '';
+              if (epicJiraKey) {
+                fields[CONFIG.customFields.epicLink] = epicJiraKey;
+              }
             }
             if (jiraType === 'Epic') {
               fields[CONFIG.customFields.epicName] = name;
