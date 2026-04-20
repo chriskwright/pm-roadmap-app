@@ -748,7 +748,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 20px;
+  min-height: 24px;
   margin-bottom: 6px;
 }
 
@@ -774,9 +774,10 @@ html, body {
   margin-left: auto;
 }
 
-.lane-actions .btn,
-.lane-actions .btn-sm,
-.lane-actions button {
+/* Only reset plain buttons in lane-actions, not split-btn children */
+.lane-actions > .btn,
+.lane-actions > .btn-sm,
+.lane-actions > button {
   background: none;
   border: none;
   padding: 0;
@@ -784,7 +785,7 @@ html, body {
   color: #94a3b8;
   cursor: pointer;
 }
-.lane-actions button:hover { color: #475569; }
+.lane-actions > button:hover { color: #475569; }
 
 .lane-body {
   display: flex;
@@ -1142,29 +1143,36 @@ html, body {
 /* ===== SPLIT BUTTON & MENUS ===== */
 .split-btn {
   display: inline-flex;
-  border: 0.5px solid rgba(0,0,0,0.15);
+  align-items: stretch;
+  border: 1px solid #d1d5db;
   border-radius: 6px;
   overflow: hidden;
   background: #FFFFFF;
 }
 
-.split-main {
+.split-btn .split-main {
   font-size: 11px;
   font-weight: 500;
   color: #7F77DD;
   padding: 4px 10px;
   cursor: pointer;
+  background: #FFFFFF;
+  border: none;
 }
-.split-main:hover { background: #F1EFE8; }
+.split-btn .split-main:hover { background: #F1EFE8; }
 
-.split-arrow {
+.split-btn .split-arrow {
   font-size: 10px;
   padding: 4px 7px;
+  border: none;
   border-left: 0.5px solid rgba(0,0,0,0.08);
   cursor: pointer;
   color: #7F77DD;
+  display: flex;
+  align-items: center;
+  background: #FFFFFF;
 }
-.split-arrow:hover { background: #F1EFE8; }
+.split-btn .split-arrow:hover { background: #F1EFE8; }
 
 .add-menu {
   background: #FFFFFF;
