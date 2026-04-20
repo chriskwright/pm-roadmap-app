@@ -446,6 +446,20 @@ const JiraService = {
 
   async getIssue(jiraKey) {
     return this._call('GET', `/issue/${jiraKey}`);
+  },
+
+  async searchIssues(query, issueTypeFilter) {
+    let jql = 'project = ' + CONFIG.jiraProject;
+    if (issueTypeFilter) jql += ' AND issuetype in (' + issueTypeFilter + ')';
+    // Check if query is a Jira key pattern
+    if (/^[A-Z]+-\d+$/i.test(query.trim())) {
+      jql += ' AND key = "' + query.trim().toUpperCase() + '"';
+    } else if (query.trim()) {
+      jql += ' AND text ~ "' + query.trim().replace(/"/g, '\\"') + '"';
+    }
+    jql += ' ORDER BY updated DESC';
+    const encoded = encodeURIComponent(jql);
+    return this._call('GET', '/search?jql=' + encoded + '&fields=summary,description,status,issuetype&maxResults=10');
   }
 };
 
@@ -681,8 +695,22 @@ function renderTwoLanes(items, project) {
       <div class="lane-header">
         <span class="lane-label">EPICS</span>
         <span class="lane-count">${epicCount}</span>
-        <div class="lane-actions">
-          <button class="btn btn-sm btn-secondary" data-action="add-epic" data-project-id="${project.id}">+ Add Epic</button>
+        <div class="lane-actions" style="position:relative">
+          <div class="split-btn">
+            <span class="split-main" data-action="add-epic" data-project-id="${project.id}">+ Add Epic</span>
+            <span class="split-arrow" data-action="toggle-add-menu" data-menu-id="epic-menu-${project.id}">&#9662;</span>
+          </div>
+          <div class="add-menu hidden" id="epic-menu-${project.id}">
+            <div class="menu-item" data-action="add-epic" data-project-id="${project.id}">
+              <span class="menu-icon">＋</span>
+              <div><div class="menu-main">Create new epic</div><div class="menu-hint">Draft a new epic in the roadmap.</div></div>
+            </div>
+            <div class="menu-divider"></div>
+            <div class="menu-item" data-action="link-epic" data-project-id="${project.id}">
+              <span class="menu-icon">&#128279;</span>
+              <div><div class="menu-main">Link existing Jira epic</div><div class="menu-hint">Pull in an epic that's already in Jira.</div></div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="lane-body">
@@ -720,6 +748,7 @@ function renderEpicContainer(epic, allItems, project) {
           <div class="epic-title-row">
             <span class="epic-title">${Utils.escapeHtml(epic.name)}</span>
             <span class="epic-child-count ${children.length === 0 ? 'empty' : ''}">${children.length} child${children.length !== 1 ? 'ren' : ''}</span>
+            ${epic.source === 'linked' ? '<span class="link-badge">&#128279; Linked</span>' : ''}
           </div>
           ${epic.description ? `<div class="epic-desc">${Utils.escapeHtml(epic.description)}</div>` : ''}
         </div>
@@ -740,8 +769,21 @@ function renderEpicContainer(epic, allItems, project) {
         ${children.length > 0 ? children.map(child => renderItemRow(child)).join('') : `
           <div class="epic-empty">No child items — add stories, bugs, or improvements</div>
         `}
-        <div class="add-child-card" data-action="add-child-item" data-project-id="${epic.projectId}" data-epic-id="${epic.id}">
-          + Add child item
+        <div class="add-child-wrap" style="position:relative">
+          <div class="add-child-card" data-action="toggle-add-menu" data-menu-id="child-menu-${epic.id}">
+            + Add child item &#9662;
+          </div>
+          <div class="add-menu hidden" id="child-menu-${epic.id}">
+            <div class="menu-item" data-action="add-child-item" data-project-id="${epic.projectId}" data-epic-id="${epic.id}">
+              <span class="menu-icon">＋</span>
+              <div><div class="menu-main">Create new child item</div><div class="menu-hint">Draft a new story, bug, improvement, or mockup.</div></div>
+            </div>
+            <div class="menu-divider"></div>
+            <div class="menu-item" data-action="link-child" data-project-id="${epic.projectId}" data-epic-id="${epic.id}">
+              <span class="menu-icon">&#128279;</span>
+              <div><div class="menu-main">Link existing Jira ticket</div><div class="menu-hint">Pull in an existing Jira story, bug, or improvement.</div></div>
+            </div>
+          </div>
         </div>
       </div>`}
     </div>`;
@@ -753,7 +795,7 @@ function renderItemRow(feature, isStandalone) {
   return `
     <div class="item-row ${isStandalone ? 'item-row-standalone' : ''}" data-action="edit-feature" data-feature-id="${feature.id}">
       <div class="item-row-type" data-type="${itemType}">${itemType}</div>
-      <div class="item-row-name">${Utils.escapeHtml(feature.name)}</div>
+      <div class="item-row-name">${Utils.escapeHtml(feature.name)}${feature.source === 'linked' ? ' <span class="link-badge">&#128279;</span>' : ''}</div>
       <div class="item-row-status"><span class="badge ${Utils.getStatusBadgeClass(feature.status)}">${feature.status || ''}</span></div>
       <div class="item-row-squad">${feature.squad ? Utils.escapeHtml(feature.squad) : '--'}</div>
       <div class="item-row-dates">${feature.startDate ? Utils.formatDate(feature.startDate) + '  ' + Utils.formatDate(feature.endDate) : '-- --'}</div>
@@ -1095,6 +1137,136 @@ function openProjectModal(projectId) {
 }
 
 // ===== MODALS: FEATURE (with Jira Panel) =====
+// ===== LINK EXISTING JIRA MODAL =====
+function openLinkJiraModal(projectId, opts) {
+  opts = opts || {};
+  const isEpic = opts.isEpic || false;
+  const parentEpicId = opts.parentEpicId || '';
+  const project = state.projects.find(p => p.id === projectId);
+  const title = isEpic ? 'Link existing Jira epic' : 'Link existing Jira ticket';
+  const subtitle = isEpic
+    ? 'Find an epic already in Jira and add it to this project.'
+    : 'Find a story, bug, or improvement already in Jira and add it as a child of this epic.';
+  const issueTypeFilter = isEpic ? 'Epic' : 'Story, Bug, Improvement, MockUp';
+  let selectedIssue = null;
+
+  Modal.open(`
+    <div class="modal-header">
+      <div class="modal-title">${title}</div>
+      <button class="modal-close" data-action="modal-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;color:#5a5a5a;margin-bottom:14px">${subtitle}</p>
+      <div class="form-group">
+        <label class="form-label">Search</label>
+        <input class="form-input" id="link-search" placeholder="Paste DOMO-XXXXX or search by title...">
+      </div>
+      <div id="link-results" class="link-results"></div>
+      <div id="link-confirm" class="link-confirm hidden"></div>
+      <div id="link-error" class="link-error hidden"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-action="modal-close">Cancel</button>
+      <button class="btn btn-primary" id="link-submit" disabled>${isEpic ? 'Link Epic' : 'Link Ticket'}</button>
+    </div>
+  `, {
+    onOpen(modal) {
+      const searchInput = modal.querySelector('#link-search');
+      const resultsDiv = modal.querySelector('#link-results');
+      const confirmDiv = modal.querySelector('#link-confirm');
+      const errorDiv = modal.querySelector('#link-error');
+      const submitBtn = modal.querySelector('#link-submit');
+
+      searchInput.focus();
+
+      const doSearch = Utils.debounce(async (query) => {
+        if (!query || query.length < 2) { resultsDiv.innerHTML = ''; return; }
+        resultsDiv.innerHTML = '<div style="padding:8px;color:#94a3b8;font-size:12px">Searching...</div>';
+        errorDiv.classList.add('hidden');
+        try {
+          const resp = await JiraService.searchIssues(query, issueTypeFilter);
+          const issues = resp.issues || [];
+          if (issues.length === 0) {
+            resultsDiv.innerHTML = '<div style="padding:8px;color:#94a3b8;font-size:12px">No results found</div>';
+            return;
+          }
+          resultsDiv.innerHTML = issues.map(issue => {
+            const statusName = issue.fields && issue.fields.status ? issue.fields.status.name : '';
+            const appStatus = CONFIG.jiraStatusToApp[statusName] || 'Planned';
+            return '<div class="link-result-row" data-key="' + Utils.escapeHtml(issue.key) + '">' +
+              '<span class="link-result-key">' + Utils.escapeHtml(issue.key) + '</span>' +
+              '<span class="link-result-title">' + Utils.escapeHtml(issue.fields.summary) + '</span>' +
+              '<span class="badge ' + Utils.getStatusBadgeClass(appStatus) + '">' + Utils.escapeHtml(appStatus) + '</span>' +
+            '</div>';
+          }).join('');
+
+          resultsDiv.querySelectorAll('.link-result-row').forEach(row => {
+            row.addEventListener('click', () => {
+              resultsDiv.querySelectorAll('.link-result-row').forEach(r => r.classList.remove('selected'));
+              row.classList.add('selected');
+              const key = row.dataset.key;
+              selectedIssue = issues.find(i => i.key === key);
+              confirmDiv.innerHTML = '\u2713 Will pull title, description, and status from Jira';
+              confirmDiv.classList.remove('hidden');
+              submitBtn.disabled = false;
+            });
+          });
+        } catch (e) {
+          resultsDiv.innerHTML = '';
+          errorDiv.textContent = "Couldn't reach Jira. Please try again.";
+          errorDiv.classList.remove('hidden');
+        }
+      }, 300);
+
+      searchInput.addEventListener('input', (e) => {
+        selectedIssue = null;
+        submitBtn.disabled = true;
+        confirmDiv.classList.add('hidden');
+        doSearch(e.target.value);
+      });
+
+      submitBtn.addEventListener('click', async () => {
+        if (!selectedIssue) { Toast.warning('No issue selected'); return; }
+        try {
+          const fields = selectedIssue.fields || {};
+          const statusName = fields.status ? fields.status.name : '';
+          const appStatus = CONFIG.jiraStatusToApp[statusName] || 'Planned';
+          const issueType = fields.issuetype ? fields.issuetype.name : 'Story';
+          const appType = isEpic ? 'Epic' : (Object.keys(CONFIG.typeToJira).find(k => CONFIG.typeToJira[k] === issueType) || issueType);
+
+          const now = new Date().toISOString();
+          const doc = {
+            id: Utils.id(),
+            projectId: projectId,
+            parentEpicId: parentEpicId,
+            name: fields.summary || selectedIssue.key,
+            description: (typeof fields.description === 'string') ? fields.description : '',
+            status: appStatus,
+            type: isEpic ? 'Epic' : appType,
+            squad: project ? (project.squad || '') : '',
+            startDate: null,
+            endDate: null,
+            jiraKey: selectedIssue.key,
+            source: 'linked',
+            mockLink: '',
+            featureSwitch: '',
+            createdAt: now,
+            lastModifiedAt: now
+          };
+
+          await DataService.create(CONFIG.collections.features, doc);
+          state.features.push(doc);
+          Toast.success('Linked: ' + selectedIssue.key);
+          Modal.close();
+          render();
+        } catch (err) {
+          Toast.error('Link failed: ' + (err.message || err));
+        }
+      });
+    }
+  });
+}
+
 function openFeatureModal(featureId, projectId, opts) {
   opts = opts || {};
   const isEdit = !!featureId;
@@ -1798,6 +1970,13 @@ function bindEvents() {
   if (_eventsBound) return;
   _eventsBound = true;
 
+  // Close dropdown menus when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.split-arrow') && !e.target.closest('.add-child-card') && !e.target.closest('.add-menu')) {
+      document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
+    }
+  });
+
   // Delegate clicks — bound ONCE, survives render() since app element persists
   app.addEventListener('click', (e) => {
     // Links — Cmd/Ctrl+Click opens in new tab, plain click does nothing
@@ -1958,13 +2137,35 @@ function bindEvents() {
         openFeatureModal(null, target.dataset.projectId);
         break;
       case 'add-epic':
+        document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
         openFeatureModal(null, target.dataset.projectId, { forceType: 'Epic' });
         break;
       case 'add-other-item':
         openFeatureModal(null, target.dataset.projectId, { forceType: 'Story' });
         break;
       case 'add-child-item':
+        document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
         openFeatureModal(null, target.dataset.projectId, { parentEpicId: target.dataset.epicId, forceType: 'Story' });
+        break;
+      case 'link-epic':
+        document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
+        openLinkJiraModal(target.dataset.projectId, { isEpic: true });
+        break;
+      case 'link-child':
+        document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
+        openLinkJiraModal(target.dataset.projectId, { isEpic: false, parentEpicId: target.dataset.epicId });
+        break;
+      case 'toggle-add-menu':
+        {
+          e.stopPropagation();
+          const menuId = target.dataset.menuId;
+          const menu = document.getElementById(menuId);
+          if (menu) {
+            const wasHidden = menu.classList.contains('hidden');
+            document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
+            if (wasHidden) menu.classList.remove('hidden');
+          }
+        }
         break;
       case 'edit-feature':
         openFeatureModal(target.dataset.featureId, null);
