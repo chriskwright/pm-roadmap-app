@@ -21,9 +21,9 @@ const CONFIG = {
   issueTypes: ['Epic', 'Story', 'Improvement', 'Bug', 'Mock'],
   statuses: ['Planned', 'In Progress', 'Done', 'Blocked'],
   squads: ['Visualizations', 'Content Distribution', 'Cross Platform'],
-  itemTypes: ['Story', 'Improvement', 'Bug', 'UX', 'Epic'],
+  itemTypes: ['Story', 'Bug', 'Improvement', 'MockUp', 'Epic'],
   // Map app item types to Jira issue types
-  typeToJira: { Story: 'Story', Improvement: 'Improvement', Bug: 'Bug', UX: 'Mock', Epic: 'Epic' },
+  typeToJira: { Story: 'Story', Bug: 'Bug', Improvement: 'Improvement', MockUp: 'MockUp', Epic: 'Epic' },
   projectColors: [
     '#3b82f6', '#8b5cf6', '#ec4899', '#10b981',
     '#f59e0b', '#06b6d4', '#f97316', '#a855f7',
@@ -32,16 +32,16 @@ const CONFIG = {
   typeColors: {
     Epic: '#8b5cf6',
     Story: '#3b82f6',
-    Improvement: '#06b6d4',
     Bug: '#ef4444',
-    UX: '#ec4899'
+    Improvement: '#06b6d4',
+    MockUp: '#9333ea'
   },
   typeIcons: {
     Epic: '\u26A1',
     Story: '\u{1F4D6}',
-    Improvement: '\u2B06',
     Bug: '\u{1F41B}',
-    UX: '\u{1F3A8}'
+    Improvement: '\u2B06',
+    MockUp: '\u{1F3A8}'
   },
   issueTypeColors: {
     Epic: '#8b5cf6',
@@ -621,6 +621,10 @@ function renderBoardView() {
 
   return `
     <div class="board-view">
+      <div class="page-header">
+        <div class="page-title">AI, Apps, BI, and Semantic Roadmap</div>
+        <div class="page-subtitle">Projects start collapsed to reduce noise when each one contains many items.</div>
+      </div>
       ${projects.map((project, index) => renderProjectGroup(project, index)).join('')}
     </div>`;
 }
@@ -641,10 +645,10 @@ function renderProjectGroup(project, index) {
     <div class="project-group ${isCollapsed ? 'collapsed' : ''}" data-project-id="${project.id}">
       <div class="project-header" data-action="toggle-project" data-project-id="${project.id}">
         <div class="project-header-top">
-          <span class="project-collapse-icon">${isCollapsed ? '&#9656;' : '&#9662;'}</span>
+          <button class="project-collapse-icon">${isCollapsed ? '&#9656;' : '&#9662;'}</button>
           <span class="project-color-dot" style="background:${color}"></span>
           <span class="project-name">${Utils.escapeHtml(project.name)}</span>
-          <span class="project-status-pill">${project.status}</span>
+          <span class="badge ${Utils.getStatusBadgeClass(project.status)}">${project.status}</span>
           <div class="project-header-actions">
             <button class="btn-icon" data-action="move-project-up" data-project-id="${project.id}" title="Move up">&#8593;</button>
             <button class="btn-icon" data-action="move-project-down" data-project-id="${project.id}" title="Move down">&#8595;</button>
@@ -689,7 +693,7 @@ function renderTwoLanes(items, project) {
     </div>
     <div class="lane">
       <div class="lane-header">
-        <span class="lane-label">OTHER ITEMS</span>
+        <span class="lane-label">STANDALONE ITEMS</span>
         <span class="lane-count">${otherCount}</span>
         <div class="lane-actions">
           <button class="btn btn-sm btn-secondary" data-action="add-other-item" data-project-id="${project.id}">+ Add</button>
@@ -710,33 +714,36 @@ function renderEpicContainer(epic, allItems, project) {
 
   return `
     <div class="epic-container" data-epic-id="${epic.id}">
-      <div class="epic-accent"></div>
-      <div class="epic-content">
-        <div class="epic-header" data-action="toggle-epic" data-feature-id="${epic.id}">
-          <span class="epic-caret ${isCollapsed ? 'collapsed' : ''}">&#9660;</span>
-          <span class="epic-title">${Utils.escapeHtml(epic.name)}</span>
+      <div class="epic-header" data-action="toggle-epic" data-feature-id="${epic.id}">
+        <span class="epic-caret ${isCollapsed ? 'collapsed' : ''}">${isCollapsed ? '&#9656;' : '&#9662;'}</span>
+        <div class="epic-content">
+          <div class="epic-title-row">
+            <span class="epic-title">${Utils.escapeHtml(epic.name)}</span>
+            <span class="epic-child-count ${children.length === 0 ? 'empty' : ''}">${children.length} child${children.length !== 1 ? 'ren' : ''}</span>
+          </div>
+          ${epic.description ? `<div class="epic-desc">${Utils.escapeHtml(epic.description)}</div>` : ''}
+        </div>
+        <div class="epic-meta-right">
           <span class="badge ${Utils.getStatusBadgeClass(epic.status)}">${epic.status}</span>
-          <span class="epic-child-count ${children.length === 0 ? 'empty' : ''}">${children.length} child${children.length !== 1 ? 'ren' : ''}</span>
           ${epic.squad ? `<span class="epic-meta">${Utils.escapeHtml(epic.squad)}</span>` : ''}
           ${epic.jiraKey ? `<a class="jira-item-link" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(epic.jiraKey)}">${Utils.escapeHtml(epic.jiraKey)}</a>` : ''}
-          ${epic.mockLink ? `<a class="mock-link" href="${Utils.escapeHtml(epic.mockLink)}" title="${Utils.escapeHtml(epic.mockLink)}">Mock</a>` : ''}
-          <div class="epic-header-actions">
-            <button class="btn-icon" data-action="move-item-up" data-feature-id="${epic.id}" title="Move up">&#9650;</button>
-            <button class="btn-icon" data-action="move-item-down" data-feature-id="${epic.id}" title="Move down">&#9660;</button>
-            <button class="btn-icon" data-action="edit-feature" data-feature-id="${epic.id}" title="Edit">&#9998;</button>
-            <button class="btn-icon" data-action="delete-item" data-feature-id="${epic.id}" title="Delete">&#128465;</button>
-          </div>
+          ${epic.mockLink ? `<a class="tag-pill" href="${Utils.escapeHtml(epic.mockLink)}" title="${Utils.escapeHtml(epic.mockLink)}">Mock</a>` : ''}
         </div>
-        ${epic.description ? `<div class="epic-desc">${Utils.escapeHtml(epic.description)}</div>` : ''}
-          <div class="epic-body" style="${isCollapsed ? 'max-height:0;overflow:hidden' : ''}">
-            ${children.length > 0 ? children.map(child => renderItemRow(child)).join('') : `
-              <div class="epic-empty">No child items — add stories, bugs, or improvements</div>
-            `}
-            <div class="add-child-card" data-action="add-child-item" data-project-id="${epic.projectId}" data-epic-id="${epic.id}">
-              + Add child item
-            </div>
-          </div>
+        <div class="epic-header-actions">
+          <button class="btn-icon" data-action="move-item-up" data-feature-id="${epic.id}" title="Move up">&#8593;</button>
+          <button class="btn-icon" data-action="move-item-down" data-feature-id="${epic.id}" title="Move down">&#8595;</button>
+          <button class="btn-icon" data-action="edit-feature" data-feature-id="${epic.id}" title="Edit">&#9998;</button>
+          <button class="btn-icon" data-action="delete-item" data-feature-id="${epic.id}" title="Delete">&#128465;</button>
+        </div>
       </div>
+      ${isCollapsed ? '' : `<div class="epic-body">
+        ${children.length > 0 ? children.map(child => renderItemRow(child)).join('') : `
+          <div class="epic-empty">No child items — add stories, bugs, or improvements</div>
+        `}
+        <div class="add-child-card" data-action="add-child-item" data-project-id="${epic.projectId}" data-epic-id="${epic.id}">
+          + Add child item
+        </div>
+      </div>`}
     </div>`;
 }
 
@@ -747,7 +754,7 @@ function renderItemRow(feature, isStandalone) {
     <div class="item-row ${isStandalone ? 'item-row-standalone' : ''}" data-action="edit-feature" data-feature-id="${feature.id}">
       <div class="item-row-type" data-type="${itemType}">${itemType}</div>
       <div class="item-row-name">${Utils.escapeHtml(feature.name)}</div>
-      <div class="item-row-status">${feature.status || ''}</div>
+      <div class="item-row-status"><span class="badge ${Utils.getStatusBadgeClass(feature.status)}">${feature.status || ''}</span></div>
       <div class="item-row-squad">${feature.squad ? Utils.escapeHtml(feature.squad) : '--'}</div>
       <div class="item-row-dates">${feature.startDate ? Utils.formatDate(feature.startDate) + '  ' + Utils.formatDate(feature.endDate) : '-- --'}</div>
       <div class="item-row-tag">
@@ -1228,6 +1235,11 @@ function openFeatureModal(featureId, projectId, opts) {
         <input class="form-input" id="feat-mocklink" placeholder="Paste Figma link here..."
           value="${Utils.escapeHtml(feature.mockLink || '')}">
       </div>
+      <div class="form-group">
+        <label class="form-label">Feature Switch</label>
+        <input class="form-input" id="feat-featureswitch" placeholder="Feature switch name..."
+          value="${Utils.escapeHtml(feature.featureSwitch || '')}">
+      </div>
       ${epicLinkKey && feature.type !== 'Epic' ? `
         <div class="form-group">
           <label class="form-label">Epic Link</label>
@@ -1271,6 +1283,7 @@ function openFeatureModal(featureId, projectId, opts) {
         const newDesc = modal.querySelector('#feat-desc').value.trim();
         const newType = modal.querySelector('#feat-type').value;
         const newMockLink = modal.querySelector('#feat-mocklink').value.trim();
+        const newFeatureSwitch = modal.querySelector('#feat-featureswitch').value.trim();
         const doc = {
           id: isEdit ? feature.id : Utils.id(),
           _docId: isEdit ? feature._docId : undefined,
@@ -1279,6 +1292,7 @@ function openFeatureModal(featureId, projectId, opts) {
           name,
           description: newDesc,
           mockLink: newMockLink,
+          featureSwitch: newFeatureSwitch,
           status: newStatus,
           type: newType,
           squad: modal.querySelector('#feat-squad').value,
@@ -1872,9 +1886,12 @@ function bindEvents() {
           }
           const grp = document.querySelector(`.project-group[data-project-id="${tpid}"]`);
           if (grp) {
-            grp.classList.toggle('collapsed', state.collapsedProjects.has(tpid));
+            const nowCollapsed = state.collapsedProjects.has(tpid);
+            grp.classList.toggle('collapsed', nowCollapsed);
             const wrap = grp.querySelector('.project-body-wrap');
-            if (wrap) wrap.classList.toggle('collapsed', state.collapsedProjects.has(tpid));
+            if (wrap) wrap.classList.toggle('collapsed', nowCollapsed);
+            const caret = grp.querySelector('.project-collapse-icon');
+            if (caret) caret.innerHTML = nowCollapsed ? '&#9656;' : '&#9662;';
           }
         }
         break;
@@ -1904,22 +1921,7 @@ function bindEvents() {
           } else {
             state.collapsedEpics.add(epicId);
           }
-          const container = document.querySelector(`.epic-container[data-epic-id="${epicId}"]`);
-          if (container) {
-            const isNowCollapsed = state.collapsedEpics.has(epicId);
-            const caret = container.querySelector('.epic-caret');
-            const body = container.querySelector('.epic-body');
-            if (caret) caret.classList.toggle('collapsed', isNowCollapsed);
-            if (body) {
-              if (isNowCollapsed) {
-                body.style.maxHeight = body.scrollHeight + 'px';
-                requestAnimationFrame(() => { body.style.maxHeight = '0'; });
-              } else {
-                body.style.maxHeight = body.scrollHeight + 'px';
-                setTimeout(() => { body.style.maxHeight = 'none'; }, 300);
-              }
-            }
-          }
+          render();
         }
         break;
       case 'move-item-up':
