@@ -1110,24 +1110,20 @@ function openProjectModal(projectId) {
       if (isEdit) {
         modal.querySelector('#proj-delete').addEventListener('click', () => {
           Modal.close();
-          Modal.confirm('Are you sure you want to delete this project? This will also delete all Jira tickets and the Epic. You cannot undo this.', async () => {
-            // Delete features, their Jira issues, and tickets from Jira and AppDB
+          Modal.confirm('This removes the project and its epics and items from the roadmap. Jira tickets linked to this project will remain in Jira.', async () => {
             const feats = getProjectFeatures(project.id);
             for (const f of feats) {
-              await deleteFeatureFromJira(f);
               const tickets = getFeatureTickets(f.id);
               for (const t of tickets) {
-                await deleteTicketFromJira(t);
                 await DataService.remove(CONFIG.collections.jiraTickets, t.id);
                 state.jiraTickets = state.jiraTickets.filter(x => x.id !== t.id);
               }
               await DataService.remove(CONFIG.collections.features, f.id);
               state.features = state.features.filter(x => x.id !== f.id);
             }
-            await deleteEpicFromJira(project);
             await DataService.remove(CONFIG.collections.projects, project.id);
             state.projects = state.projects.filter(p => p.id !== project.id);
-            Toast.success('Project and Jira issues deleted');
+            Toast.success('Project deleted');
             render();
           });
         });
@@ -1608,19 +1604,15 @@ function openFeatureModal(featureId, projectId, opts) {
       if (isEdit) {
         modal.querySelector('#feat-delete').addEventListener('click', () => {
           Modal.close();
-          Modal.confirm(`Delete "${feature.name}"? This will also delete any linked Jira issues.`, async () => {
-            // Delete the item's own Jira issue
-            await deleteFeatureFromJira(feature);
-            // Delete any linked Jira tickets (old model)
+          Modal.confirm(`Delete "${feature.name}"? This removes it from the roadmap only. Any linked Jira ticket will remain in Jira.`, async () => {
             const fTickets = getFeatureTickets(feature.id);
             for (const t of fTickets) {
-              await deleteTicketFromJira(t);
               await DataService.remove(CONFIG.collections.jiraTickets, t.id);
               state.jiraTickets = state.jiraTickets.filter(x => x.id !== t.id);
             }
             await DataService.remove(CONFIG.collections.features, feature.id);
             state.features = state.features.filter(f => f.id !== feature.id);
-            Toast.success('Item and Jira issue deleted');
+            Toast.success('Item deleted');
             render();
           });
         });
@@ -1857,27 +1849,7 @@ async function refreshAllFromJira() {
   render();
 }
 
-// ===== JIRA DELETE HELPERS =====
-async function deleteJiraIssue(jiraKey) {
-  if (!jiraKey) return;
-  try {
-    await JiraService._call('DELETE', `/issue/${jiraKey}`);
-  } catch (e) {
-    console.warn('Failed to delete Jira issue ' + jiraKey + ':', e.message);
-  }
-}
-
-async function deleteTicketFromJira(ticket) {
-  if (ticket.jiraKey) await deleteJiraIssue(ticket.jiraKey);
-}
-
-async function deleteEpicFromJira(project) {
-  if (project.epicKey) await deleteJiraIssue(project.epicKey);
-}
-
-async function deleteFeatureFromJira(feature) {
-  if (feature.jiraKey) await deleteJiraIssue(feature.jiraKey);
-}
+// Jira delete removed — roadmap deletes never touch Jira
 
 // ===== DATA HELPERS =====
 function getProjectFeatures(projectId) {
@@ -2007,23 +1979,20 @@ function bindEvents() {
         e.stopPropagation();
         const proj = state.projects.find(p => p.id === target.dataset.projectId);
         if (proj) {
-          Modal.confirm('Are you sure you want to delete this project? This will also delete all Jira tickets and the Epic. You cannot undo this.', async () => {
+          Modal.confirm('This removes the project and its epics and items from the roadmap. Jira tickets linked to this project will remain in Jira.', async () => {
             const feats = getProjectFeatures(proj.id);
             for (const f of feats) {
-              await deleteFeatureFromJira(f);
               const tickets = getFeatureTickets(f.id);
               for (const t of tickets) {
-                await deleteTicketFromJira(t);
                 await DataService.remove(CONFIG.collections.jiraTickets, t.id);
                 state.jiraTickets = state.jiraTickets.filter(x => x.id !== t.id);
               }
               await DataService.remove(CONFIG.collections.features, f.id);
               state.features = state.features.filter(x => x.id !== f.id);
             }
-            await deleteEpicFromJira(proj);
             await DataService.remove(CONFIG.collections.projects, proj.id);
             state.projects = state.projects.filter(p => p.id !== proj.id);
-            Toast.success('Project and Jira issues deleted');
+            Toast.success('Project deleted');
             render();
           });
         }
