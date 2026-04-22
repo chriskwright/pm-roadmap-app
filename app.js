@@ -100,6 +100,8 @@ const state = {
   searchQuery: '',
   collapsedProjects: new Set(),
   collapsedEpics: new Set(),
+  designEpicFilter: 'all',
+  designEpicPopoverOpen: false,
   loading: true,
   useLocalStorage: false
 };
@@ -568,23 +570,10 @@ function renderHeader() {
         </div>
       </div>
       <div class="header-actions">
-        <div class="view-toggle">
-          <button class="view-toggle-btn ${state.currentView === 'board' ? 'active' : ''}"
-            data-action="set-view" data-view="board">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-              <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-            </svg>
-            <span>Board</span>
-          </button>
-          <button class="view-toggle-btn ${state.currentView === 'gantt' ? 'active' : ''}"
-            data-action="set-view" data-view="gantt">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="4" y1="6" x2="16" y2="6"/><line x1="8" y1="12" x2="20" y2="12"/>
-              <line x1="4" y1="18" x2="14" y2="18"/>
-            </svg>
-            <span>Gantt</span>
-          </button>
+        <div class="tabs">
+          <button class="tab ${state.currentView === 'board' ? 'active' : ''}" data-action="set-view" data-view="board">Roadmap</button>
+          <button class="tab ${state.currentView === 'design' ? 'active' : ''}" data-action="set-view" data-view="design">Design Board</button>
+          <button class="tab ${state.currentView === 'gantt' ? 'active' : ''}" data-action="set-view" data-view="gantt">Gantt</button>
         </div>
         <button class="btn btn-secondary btn-sm" data-action="test-jira" title="Test Jira connection">Test Jira</button>
         <button class="btn btn-secondary btn-sm" data-action="refresh-all" title="Refresh all from Jira">&#x1F504; Refresh</button>
@@ -1266,7 +1255,7 @@ function openLinkJiraModal(projectId, opts) {
 function openFeatureModal(featureId, projectId, opts) {
   opts = opts || {};
   const isEdit = !!featureId;
-  const feature = isEdit ? state.features.find(f => f.id === featureId) : { projectId, type: opts.forceType || 'Story', parentEpicId: opts.parentEpicId || '' };
+  const feature = isEdit ? state.features.find(f => f.id === featureId) : { projectId, type: opts.forceType || 'Story', parentEpicId: opts.parentEpicId || '', status: opts.forceStatus || 'Planned' };
   const project = state.projects.find(p => p.id === (feature.projectId || projectId));
   const tickets = isEdit ? getFeatureTickets(feature.id) : [];
 
@@ -1918,20 +1907,286 @@ function filterFeatures(features) {
   return filtered;
 }
 
+// ===== DESIGN BOARD (MockUp Kanban) =====
+const DESIGN_LANES = [
+  { name: 'To Do',       status: 'Planned',     dotClass: 'dot-todo' },
+  { name: 'In Progress', status: 'In Progress', dotClass: 'dot-progress' },
+  { name: 'Done',        status: 'Done',        dotClass: 'dot-done' }
+];
+
+function getDesignBoardMockUps() {
+  let mockUps = state.features.filter(f => f.type === 'MockUp');
+  if (state.designEpicFilter && state.designEpicFilter !== 'all') {
+    mockUps = mockUps.filter(f => f.parentEpicId === state.designEpicFilter);
+  }
+  return mockUps;
+}
+
+function getMockUpEpicsForFilter() {
+  // Epics that currently have MockUp children
+  const mockUps = state.features.filter(f => f.type === 'MockUp');
+  const epicIds = new Set(mockUps.map(f => f.parentEpicId).filter(Boolean));
+  return state.features.filter(f => f.type === 'Epic' && epicIds.has(f.id));
+}
+
+function renderDesignBoardView() {
+  const allMockUps = state.features.filter(f => f.type === 'MockUp');
+  if (allMockUps.length === 0) {
+    return `
+      <div class="design-board">
+        <div class="design-page-header">
+          <div class="design-page-title">Design Board</div>
+          <div class="design-page-subtitle">MockUp tickets from the Roadmap, flowing through design review.</div>
+        </div>
+        <div class="design-empty-state">No mockups yet. Create a MockUp from the Roadmap or use + Add mockup below.</div>
+      </div>`;
+  }
+
+  const mockUps = getDesignBoardMockUps();
+  const activeEpic = state.designEpicFilter !== 'all'
+    ? state.features.find(f => f.id === state.designEpicFilter)
+    : null;
+  const epicFilterLabel = activeEpic ? activeEpic.name : 'All epics';
+  const epicOptions = getMockUpEpicsForFilter();
+
+  return `
+    <div class="design-board">
+      <div class="design-page-header">
+        <div class="design-page-title">Design Board</div>
+        <div class="design-page-subtitle">MockUp tickets from the Roadmap, flowing through design review.</div>
+      </div>
+      <div class="filter-bar">
+        <div style="position:relative;">
+          <button class="filter-chip ${state.designEpicFilter !== 'all' ? 'active' : ''}" data-action="toggle-epic-filter">
+            <span>${Utils.escapeHtml(epicFilterLabel)}</span>
+            <span class="filter-chip-caret">&#9662;</span>
+          </button>
+          ${state.designEpicPopoverOpen ? `
+            <div class="epic-filter-popover" data-epic-popover>
+              <button class="epic-filter-item ${state.designEpicFilter === 'all' ? 'active' : ''}" data-action="set-epic-filter" data-epic-id="all">All epics</button>
+              ${epicOptions.map(ep => `
+                <button class="epic-filter-item ${state.designEpicFilter === ep.id ? 'active' : ''}" data-action="set-epic-filter" data-epic-id="${ep.id}">${Utils.escapeHtml(ep.name)}</button>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>
+      </div>
+      <div class="kanban">
+        ${DESIGN_LANES.map(lane => renderKanbanLane(lane, mockUps.filter(f => f.status === lane.status))).join('')}
+      </div>
+    </div>`;
+}
+
+function renderKanbanLane(lane, cards) {
+  const sorted = [...cards].sort((a, b) => {
+    const ad = new Date(a.createdAt || 0).getTime();
+    const bd = new Date(b.createdAt || 0).getTime();
+    return bd - ad;
+  });
+  return `
+    <div class="lane" data-lane-status="${lane.status}">
+      <div class="lane-head">
+        <span class="lane-dot ${lane.dotClass}"></span>
+        <span class="lane-title">${lane.name}</span>
+        <span class="lane-count">${sorted.length}</span>
+      </div>
+      <div class="lane-body">
+        ${sorted.length === 0
+          ? `<div class="lane-empty">No mockups here yet.</div>`
+          : sorted.map(f => renderMockCard(f)).join('')}
+      </div>
+      <button class="add-card-btn" data-action="add-mockup" data-lane-status="${lane.status}">+ Add mockup</button>
+    </div>`;
+}
+
+function renderMockCard(feature) {
+  const parentEpic = feature.parentEpicId
+    ? state.features.find(f => f.id === feature.parentEpicId)
+    : null;
+  const squad = feature.squad || '';
+  const initials = squad ? squad.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() : '';
+  const dueDate = feature.endDate ? Utils.formatDate(feature.endDate) : '';
+  const mockLink = feature.mockLink || '';
+
+  return `
+    <div class="mock-card" draggable="true" data-action="edit-feature" data-feature-id="${feature.id}">
+      <div class="card-head">
+        <span class="tag-mockup">MockUp</span>
+        ${feature.jiraKey ? `<span class="card-key">${Utils.escapeHtml(feature.jiraKey)}</span>` : ''}
+      </div>
+      <div class="card-title">${Utils.escapeHtml(feature.name || '')}</div>
+      ${parentEpic ? `<div class="epic-context">${Utils.escapeHtml(parentEpic.name)}</div>` : ''}
+      ${mockLink ? `
+        <div class="mock-links">
+          <a class="mock-link figma" href="${Utils.escapeHtml(mockLink)}" target="_blank" rel="noopener" data-no-card-click>
+            <span class="icon">&#9670;</span>
+            <span class="mock-link-name">Figma mock</span>
+          </a>
+        </div>
+      ` : ''}
+      <div class="card-footer">
+        ${squad
+          ? `<div class="avatar">${Utils.escapeHtml(initials || '?')}</div><span>${Utils.escapeHtml(squad)}</span>`
+          : `<div class="avatar unassigned">&mdash;</div><span>Unassigned</span>`}
+        ${dueDate ? `<div class="footer-right"><span class="due-date">${Utils.escapeHtml(dueDate)}</span></div>` : ''}
+      </div>
+    </div>`;
+}
+
+async function updateFeatureStatus(featureId, newStatus) {
+  const feature = state.features.find(f => f.id === featureId);
+  if (!feature) return false;
+  const oldStatus = feature.status;
+  if (oldStatus === newStatus) return true;
+
+  const doc = { ...feature, status: newStatus, lastModifiedAt: new Date().toISOString() };
+  await DataService.update(CONFIG.collections.features, doc);
+  const fIdx = state.features.findIndex(f => f.id === featureId);
+  if (fIdx >= 0) state.features[fIdx] = doc;
+
+  // Sync to Jira if linked
+  if (doc.jiraKey) {
+    const transitionId = CONFIG.transitionMap[`${oldStatus}->${newStatus}`];
+    if (transitionId) {
+      try {
+        await JiraService.transitionIssue(doc.jiraKey, transitionId);
+        Toast.success('Status synced to Jira');
+      } catch (e) {
+        // Revert
+        const reverted = { ...doc, status: oldStatus, lastModifiedAt: new Date().toISOString() };
+        await DataService.update(CONFIG.collections.features, reverted);
+        if (fIdx >= 0) state.features[fIdx] = reverted;
+        Toast.error("Couldn't update Jira. Please try again.");
+        render();
+        return false;
+      }
+    } else {
+      Toast.warning(`No Jira transition mapped for ${oldStatus} → ${newStatus}`);
+    }
+  } else {
+    Toast.success('Status updated');
+  }
+  render();
+  return true;
+}
+
+function openMockUpCreateFlow(laneStatus) {
+  const projects = state.projects;
+  if (projects.length === 0) {
+    Toast.warning('Create a project first, then add mockups.');
+    return;
+  }
+
+  Modal.open(`
+    <div class="modal-header">
+      <div class="modal-title">New MockUp</div>
+      <button class="modal-close" data-action="modal-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Project</label>
+        <select class="form-select" id="mockup-project">
+          ${projects.map(p => `<option value="${p.id}">${Utils.escapeHtml(p.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Parent Epic (optional)</label>
+        <select class="form-select" id="mockup-epic">
+          <option value="">— None (standalone) —</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-action="modal-close">Cancel</button>
+      <button class="btn btn-primary" id="mockup-continue">Continue</button>
+    </div>
+  `, {
+    className: 'confirm-dialog',
+    onOpen(modal) {
+      const projectSel = modal.querySelector('#mockup-project');
+      const epicSel = modal.querySelector('#mockup-epic');
+
+      function repopulateEpics() {
+        const pid = projectSel.value;
+        const epics = state.features.filter(f => f.type === 'Epic' && f.projectId === pid);
+        epicSel.innerHTML = '<option value="">— None (standalone) —</option>' +
+          epics.map(e => `<option value="${e.id}">${Utils.escapeHtml(e.name)}</option>`).join('');
+      }
+      repopulateEpics();
+      projectSel.addEventListener('change', repopulateEpics);
+
+      modal.querySelector('#mockup-continue').addEventListener('click', () => {
+        const projectId = projectSel.value;
+        const epicId = epicSel.value || '';
+        Modal.close();
+        openFeatureModal(null, projectId, {
+          forceType: 'MockUp',
+          forceStatus: laneStatus,
+          parentEpicId: epicId
+        });
+      });
+    }
+  });
+}
+
+let _draggedFeatureId = null;
+function bindDesignBoardDragDrop() {
+  const cards = document.querySelectorAll('.mock-card');
+  const lanes = document.querySelectorAll('.lane');
+
+  cards.forEach(card => {
+    card.addEventListener('dragstart', (e) => {
+      _draggedFeatureId = card.dataset.featureId;
+      card.classList.add('dragging');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', _draggedFeatureId); } catch {}
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      document.querySelectorAll('.lane.drop-target').forEach(l => l.classList.remove('drop-target'));
+    });
+  });
+
+  lanes.forEach(lane => {
+    lane.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      try { e.dataTransfer.dropEffect = 'move'; } catch {}
+      lane.classList.add('drop-target');
+    });
+    lane.addEventListener('dragleave', (e) => {
+      if (e.target === lane) lane.classList.remove('drop-target');
+    });
+    lane.addEventListener('drop', (e) => {
+      e.preventDefault();
+      lane.classList.remove('drop-target');
+      const newStatus = lane.dataset.laneStatus;
+      const fid = _draggedFeatureId;
+      _draggedFeatureId = null;
+      if (fid && newStatus) updateFeatureStatus(fid, newStatus);
+    });
+  });
+}
+
 // ===== RENDER =====
 function render() {
   const app = document.getElementById('app');
   app.innerHTML = `
     ${renderHeader()}
-    ${renderToolbar()}
+    ${state.currentView === 'design' ? '' : renderToolbar()}
     <div class="app-main">
-      ${state.currentView === 'board' ? renderBoardView() : renderGanttView()}
+      ${state.currentView === 'board' ? renderBoardView()
+        : state.currentView === 'design' ? renderDesignBoardView()
+        : renderGanttView()}
     </div>`;
   bindEvents();
 
   // Sync Gantt label scrolling
   if (state.currentView === 'gantt') {
     syncGanttScroll();
+  }
+
+  // Bind drag/drop for Design Board cards
+  if (state.currentView === 'design') {
+    bindDesignBoardDragDrop();
   }
 }
 
@@ -1947,12 +2202,23 @@ function bindEvents() {
     if (!e.target.closest('.split-arrow') && !e.target.closest('.add-child-card') && !e.target.closest('.add-menu')) {
       document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
     }
+    // Close epic-filter popover on outside click
+    if (state.designEpicPopoverOpen && !e.target.closest('[data-epic-popover]') && !e.target.closest('[data-action="toggle-epic-filter"]')) {
+      state.designEpicPopoverOpen = false;
+      if (state.currentView === 'design') render();
+    }
   });
 
   // Delegate clicks — bound ONCE, survives render() since app element persists
   app.addEventListener('click', (e) => {
-    // Links — Cmd/Ctrl+Click opens in new tab, plain click does nothing
-    if (e.target.closest('a[href]')) {
+    // Links — let external links open in new tab; block internal links from navigating
+    const link = e.target.closest('a[href]');
+    if (link) {
+      if (link.target === '_blank' || link.hasAttribute('data-external')) {
+        // Let browser open in new tab; don't trigger card-click etc.
+        e.stopPropagation();
+        return;
+      }
       if (!e.metaKey && !e.ctrlKey) {
         e.preventDefault();
       }
@@ -2138,6 +2404,19 @@ function bindEvents() {
         break;
       case 'edit-feature':
         openFeatureModal(target.dataset.featureId, null);
+        break;
+      case 'add-mockup':
+        openMockUpCreateFlow(target.dataset.laneStatus || 'Planned');
+        break;
+      case 'toggle-epic-filter':
+        e.stopPropagation();
+        state.designEpicPopoverOpen = !state.designEpicPopoverOpen;
+        render();
+        break;
+      case 'set-epic-filter':
+        state.designEpicFilter = target.dataset.epicId;
+        state.designEpicPopoverOpen = false;
+        render();
         break;
       case 'push-all-project':
         e.stopPropagation();
