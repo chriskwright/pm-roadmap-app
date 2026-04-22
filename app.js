@@ -2211,14 +2211,8 @@ function bindEvents() {
 
   // Delegate clicks — bound ONCE, survives render() since app element persists
   app.addEventListener('click', (e) => {
-    // Links — let external links open in new tab; block internal links from navigating
-    const link = e.target.closest('a[href]');
-    if (link) {
-      if (link.target === '_blank' || link.hasAttribute('data-external')) {
-        // Let browser open in new tab; don't trigger card-click etc.
-        e.stopPropagation();
-        return;
-      }
+    // Links — Cmd/Ctrl+Click opens in new tab, plain click does nothing
+    if (e.target.closest('a[href]')) {
       if (!e.metaKey && !e.ctrlKey) {
         e.preventDefault();
       }
