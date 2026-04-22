@@ -2012,7 +2012,7 @@ function renderMockCard(feature) {
     <div class="mock-card" draggable="true" data-action="edit-feature" data-feature-id="${feature.id}">
       <div class="card-head">
         <span class="tag-mockup">MockUp</span>
-        ${feature.jiraKey ? `<span class="card-key">${Utils.escapeHtml(feature.jiraKey)}</span>` : ''}
+        ${feature.jiraKey ? `<a class="card-key" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(feature.jiraKey)}" title="Open ${Utils.escapeHtml(feature.jiraKey)} in Jira">${Utils.escapeHtml(feature.jiraKey)}</a>` : ''}
       </div>
       <div class="card-title">${Utils.escapeHtml(feature.name || '')}</div>
       ${parentEpic ? `<div class="epic-context">${Utils.escapeHtml(parentEpic.name)}</div>` : ''}

@@ -2272,7 +2272,9 @@ a.jira-ticket-key:hover {
   font-weight: 500;
   font-family: var(--font-mono, ui-monospace, monospace);
   margin-left: auto;
+  text-decoration: none;
 }
+.card-key:hover { text-decoration: underline; }
 .card-title {
   font-size: 13px;
   font-weight: 500;
