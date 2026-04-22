@@ -2146,6 +2146,19 @@ function bindDesignBoardDragDrop() {
     });
   });
 
+  // Defense in depth: stop link clicks from reaching the card's edit-feature delegate.
+  // Plain click: block (no navigation, no form). Cmd/Ctrl+click: let default open new tab.
+  document.querySelectorAll('.mock-card a[href]').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+      }
+    });
+    // Swallow mousedown too — browsers may fire 'click' on an ancestor for draggable parents
+    link.addEventListener('mousedown', (e) => e.stopPropagation());
+  });
+
   lanes.forEach(lane => {
     lane.addEventListener('dragover', (e) => {
       e.preventDefault();
