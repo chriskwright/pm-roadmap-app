@@ -582,8 +582,6 @@ function renderHeader() {
           <button class="tab ${state.currentView === 'design' ? 'active' : ''}" data-action="set-view" data-view="design">Design Board</button>
           <button class="tab ${state.currentView === 'gantt' ? 'active' : ''}" data-action="set-view" data-view="gantt">Gantt</button>
         </div>
-        <button class="btn btn-secondary btn-sm" data-action="test-jira" title="Test Jira connection">Test Jira</button>
-        <button class="btn btn-secondary btn-sm" data-action="refresh-all" title="Refresh all from Jira">&#x1F504; Refresh</button>
         <button class="btn btn-primary" data-action="add-project">+ Project</button>
       </div>
     </header>`;
