@@ -114,6 +114,7 @@ const state = {
   collapsedEpics: new Set(),
   designEpicFilter: 'all',
   designEpicPopoverOpen: false,
+  assigneePickerForId: null,
   loading: true,
   useLocalStorage: false
 };
@@ -2087,12 +2088,56 @@ function renderMockCard(feature) {
         </div>
       ` : ''}
       <div class="card-footer">
-        ${ownerDisplay
-          ? `<div class="avatar">${Utils.escapeHtml(initials || '?')}</div><span>${Utils.escapeHtml(ownerDisplay)}</span>`
-          : `<div class="avatar unassigned">&mdash;</div><span>Unassigned</span>`}
+        <div class="card-owner-wrap">
+          <button class="card-owner-trigger" draggable="false" data-action="open-assignee-picker" data-feature-id="${feature.id}" title="Change assignee">
+            ${ownerDisplay
+              ? `<div class="avatar">${Utils.escapeHtml(initials || '?')}</div><span>${Utils.escapeHtml(ownerDisplay)}</span>`
+              : `<div class="avatar unassigned">&mdash;</div><span>Unassigned</span>`}
+          </button>
+          ${state.assigneePickerForId === feature.id ? `
+            <div class="assignee-picker" data-assignee-picker>
+              <button class="assignee-option ${!feature.assignee ? 'active' : ''}" data-action="set-assignee" data-feature-id="${feature.id}" data-assignee="">— Unassigned —</button>
+              ${CONFIG.designers.map(d => `
+                <button class="assignee-option ${d.name === (feature.assignee || '') ? 'active' : ''}" data-action="set-assignee" data-feature-id="${feature.id}" data-assignee="${d.name}">${Utils.escapeHtml(d.displayName)}</button>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>
         ${dueDate ? `<div class="footer-right"><span class="due-date">${Utils.escapeHtml(dueDate)}</span></div>` : ''}
       </div>
     </div>`;
+}
+
+async function updateFeatureAssignee(featureId, newAssignee) {
+  const feature = state.features.find(f => f.id === featureId);
+  if (!feature) return false;
+  const oldAssignee = feature.assignee || '';
+  if (oldAssignee === newAssignee) return true;
+
+  const doc = { ...feature, assignee: newAssignee, lastModifiedAt: new Date().toISOString() };
+  await DataService.update(CONFIG.collections.features, doc);
+  const idx = state.features.findIndex(f => f.id === featureId);
+  if (idx >= 0) state.features[idx] = doc;
+
+  if (doc.jiraKey) {
+    try {
+      await JiraService.updateIssueFields(doc.jiraKey, {
+        assignee: newAssignee ? { name: newAssignee } : null
+      });
+      Toast.success('Assignee synced to Jira');
+    } catch (e) {
+      const reverted = { ...doc, assignee: oldAssignee, lastModifiedAt: new Date().toISOString() };
+      await DataService.update(CONFIG.collections.features, reverted);
+      if (idx >= 0) state.features[idx] = reverted;
+      Toast.error("Couldn't update Jira assignee. Reverted.");
+      render();
+      return false;
+    }
+  } else {
+    Toast.success('Assignee updated');
+  }
+  render();
+  return true;
 }
 
 async function updateFeatureStatus(featureId, newStatus) {
@@ -2289,6 +2334,11 @@ function bindEvents() {
     // Close epic-filter popover on outside click
     if (state.designEpicPopoverOpen && !e.target.closest('[data-epic-popover]') && !e.target.closest('[data-action="toggle-epic-filter"]')) {
       state.designEpicPopoverOpen = false;
+      if (state.currentView === 'design') render();
+    }
+    // Close assignee picker on outside click
+    if (state.assigneePickerForId && !e.target.closest('[data-assignee-picker]') && !e.target.closest('[data-action="open-assignee-picker"]')) {
+      state.assigneePickerForId = null;
       if (state.currentView === 'design') render();
     }
   });
@@ -2519,6 +2569,23 @@ function bindEvents() {
         break;
       case 'add-mockup':
         openMockUpCreateFlow(target.dataset.laneStatus || 'Planned');
+        break;
+      case 'open-assignee-picker':
+        e.stopPropagation();
+        {
+          const fid = target.dataset.featureId;
+          state.assigneePickerForId = state.assigneePickerForId === fid ? null : fid;
+          render();
+        }
+        break;
+      case 'set-assignee':
+        e.stopPropagation();
+        {
+          const fid = target.dataset.featureId;
+          const newAssignee = target.dataset.assignee || '';
+          state.assigneePickerForId = null;
+          updateFeatureAssignee(fid, newAssignee);
+        }
         break;
       case 'toggle-epic-filter':
         e.stopPropagation();
