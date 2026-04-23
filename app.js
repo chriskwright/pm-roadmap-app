@@ -2683,23 +2683,20 @@ function bindEvents() {
     }, 250));
   }
 
-  // Status filter
-  const filterSelect = app.querySelector('[data-action="status-filter"]');
-  if (filterSelect) {
-    filterSelect.addEventListener('change', (e) => {
-      state.statusFilter = e.target.value;
+  // Filter selects — delegated on #app so they survive re-renders
+  // (innerHTML in render() replaces the <select> nodes each pass).
+  app.addEventListener('change', (e) => {
+    const sel = e.target.closest('[data-action]');
+    if (!sel) return;
+    const action = sel.dataset.action;
+    if (action === 'status-filter') {
+      state.statusFilter = sel.value;
       render();
-    });
-  }
-
-  // Type filter
-  const typeSelect = app.querySelector('[data-action="type-filter"]');
-  if (typeSelect) {
-    typeSelect.addEventListener('change', (e) => {
-      state.typeFilter = e.target.value;
+    } else if (action === 'type-filter') {
+      state.typeFilter = sel.value;
       render();
-    });
-  }
+    }
+  });
 
   // Gantt tooltip
   if (state.currentView === 'gantt') {
