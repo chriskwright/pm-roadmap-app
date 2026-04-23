@@ -1951,7 +1951,24 @@ function filterFeatures(features) {
   }
   if (state.searchQuery) {
     const q = state.searchQuery.toLowerCase();
-    filtered = filtered.filter(f => featureMatchesSearch(f, q));
+    // Keep direct matches + their parent epic; also keep an epic whose
+    // child matches so the epic container still renders around it.
+    const keep = new Set();
+    filtered.forEach(f => {
+      if (featureMatchesSearch(f, q)) {
+        keep.add(f.id);
+        if (f.parentEpicId) keep.add(f.parentEpicId);
+      }
+    });
+    filtered.forEach(f => {
+      if (f.type === 'Epic') {
+        const hasMatchingChild = state.features.some(c =>
+          c.parentEpicId === f.id && featureMatchesSearch(c, q)
+        );
+        if (hasMatchingChild) keep.add(f.id);
+      }
+    });
+    filtered = filtered.filter(f => keep.has(f.id));
   }
   return filtered;
 }
