@@ -91,13 +91,13 @@ const CONFIG = {
   // Hardcoded assignee list — Jira Server uses the `name` field for assignment.
   // Add/remove here and republish to update the dropdown.
   designers: [
-    { name: 'chris.wright',   displayName: 'Chris Wright' },
     { name: 'ellen.lingwall', displayName: 'Ellen Lingwall' },
     { name: 'lauren.jensen',  displayName: 'Lauren Jensen' },
     { name: 'brandon.king',   displayName: 'Brandon King' },
-    { name: 'khushboo',       displayName: 'Khushboo' },
     { name: 'Devin.LuBean',   displayName: 'Devin LuBean' },
-    { name: 'phillip.fuchs',  displayName: 'Phillip Fuchs' }
+    { name: 'khushboo',       displayName: 'Khushboo' },
+    { name: 'phillip.fuchs',  displayName: 'Phillip Fuchs' },
+    { name: 'chris.wright',   displayName: 'Chris Wright' }
   ]
 };
 
