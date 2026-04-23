@@ -1005,9 +1005,10 @@ html, body {
   align-items: center;
   justify-content: center;
   min-width: 56px;
-  height: 22px;
-  padding: 0 10px;
+  min-height: 22px;
+  padding: 3px 10px;
   font-size: 11px;
+  line-height: 1.2;
   font-weight: 500;
   border-radius: 9999px;
   white-space: nowrap;
