@@ -616,7 +616,7 @@ html, body {
 /* Collapse animation container */
 /* Project body collapse/expand */
 .project-body-wrap {
-  overflow: hidden;
+  overflow: visible;
   max-height: 8000px;
   opacity: 1;
   transition: max-height 350ms ease, opacity 250ms ease;
@@ -624,6 +624,7 @@ html, body {
 }
 
 .project-body-wrap.collapsed {
+  overflow: hidden;
   max-height: 0;
   opacity: 0;
   margin-top: 0;
@@ -1183,8 +1184,9 @@ html, body {
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   position: absolute;
   top: calc(100% + 4px);
-  right: 0;
-  z-index: 10;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
 }
 
 /* Native <details> dropdown — replaces JS-toggled .add-menu wrappers.
