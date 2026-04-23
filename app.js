@@ -578,7 +578,7 @@ function renderHeader() {
       </div>
       <div class="header-actions">
         <div class="tabs">
-          <button class="tab ${state.currentView === 'board' ? 'active' : ''}" data-action="set-view" data-view="board">Roadmap</button>
+          <button class="tab ${state.currentView === 'board' ? 'active' : ''}" data-action="set-view" data-view="board">Features</button>
           <button class="tab ${state.currentView === 'design' ? 'active' : ''}" data-action="set-view" data-view="design">Design Board</button>
           <button class="tab ${state.currentView === 'gantt' ? 'active' : ''}" data-action="set-view" data-view="gantt">Gantt</button>
         </div>
