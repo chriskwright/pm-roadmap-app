@@ -1004,11 +1004,11 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   min-width: 56px;
-  min-height: 22px;
-  padding: 3px 10px;
+  padding: 5px 12px;
   font-size: 11px;
-  line-height: 1.2;
+  line-height: 1.35;
   font-weight: 500;
   border-radius: 9999px;
   white-space: nowrap;
