@@ -2271,10 +2271,43 @@ a.jira-ticket-key:hover {
   color: #7F77DD;
   font-weight: 500;
   font-family: var(--font-mono, ui-monospace, monospace);
-  margin-left: auto;
   text-decoration: none;
 }
 .card-key:hover { text-decoration: underline; }
+
+.card-reorder {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.mock-card:hover .card-reorder { opacity: 1; }
+.card-reorder-btn {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  border-radius: 3px;
+  font-size: 9px;
+  line-height: 1;
+  font-family: inherit;
+}
+.card-reorder-btn:hover {
+  background: rgba(0,0,0,0.06);
+  color: #1a1a1a;
+}
+.lane-body .mock-card:first-child .card-reorder-btn[data-action="move-mockup-up"],
+.lane-body .mock-card:last-child .card-reorder-btn[data-action="move-mockup-down"] {
+  opacity: 0.25;
+  pointer-events: none;
+}
 .card-title {
   font-size: 13px;
   font-weight: 500;

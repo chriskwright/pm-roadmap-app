@@ -2026,6 +2026,9 @@ function renderDesignBoardView() {
 
 function renderKanbanLane(lane, cards) {
   const sorted = [...cards].sort((a, b) => {
+    const ao = typeof a.sortOrder === 'number' ? a.sortOrder : Infinity;
+    const bo = typeof b.sortOrder === 'number' ? b.sortOrder : Infinity;
+    if (ao !== bo) return ao - bo;
     const ad = new Date(a.createdAt || 0).getTime();
     const bd = new Date(b.createdAt || 0).getTime();
     return bd - ad;
@@ -2067,6 +2070,10 @@ function renderMockCard(feature) {
     <div class="mock-card" draggable="true" data-action="edit-feature" data-feature-id="${feature.id}">
       <div class="card-head">
         <span class="tag-mockup">MockUp</span>
+        <div class="card-reorder">
+          <button class="card-reorder-btn" data-action="move-mockup-up" data-feature-id="${feature.id}" title="Move up">&#9650;</button>
+          <button class="card-reorder-btn" data-action="move-mockup-down" data-feature-id="${feature.id}" title="Move down">&#9660;</button>
+        </div>
         ${feature.jiraKey ? `<a class="card-key" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(feature.jiraKey)}" title="Open ${Utils.escapeHtml(feature.jiraKey)} in Jira">${Utils.escapeHtml(feature.jiraKey)}</a>` : ''}
       </div>
       <div class="card-title">${Utils.escapeHtml(feature.name || '')}</div>
@@ -2416,6 +2423,40 @@ function bindEvents() {
           siblings.forEach((s, i) => { s.sortOrder = i; });
           const idx = siblings.findIndex(f => f.id === item.id);
           const swapIdx = action === 'move-item-up' ? idx - 1 : idx + 1;
+          if (idx < 0 || swapIdx < 0 || swapIdx >= siblings.length) return;
+          const other = siblings[swapIdx];
+          const temp = item.sortOrder;
+          item.sortOrder = other.sortOrder;
+          other.sortOrder = temp;
+          await DataService.update(CONFIG.collections.features, item);
+          await DataService.update(CONFIG.collections.features, other);
+          const si = state.features.findIndex(f => f.id === item.id);
+          const oi = state.features.findIndex(f => f.id === other.id);
+          if (si >= 0) state.features[si] = { ...item };
+          if (oi >= 0) state.features[oi] = { ...other };
+          render();
+        })();
+        break;
+      case 'move-mockup-up':
+      case 'move-mockup-down':
+        e.stopPropagation();
+        (async () => {
+          const item = state.features.find(f => f.id === target.dataset.featureId);
+          if (!item || item.type !== 'MockUp') return;
+          // Siblings: every MockUp currently in the same lane (status)
+          const siblings = state.features.filter(f =>
+            f.type === 'MockUp' && f.status === item.status
+          ).sort((a, b) => {
+            const ao = typeof a.sortOrder === 'number' ? a.sortOrder : Infinity;
+            const bo = typeof b.sortOrder === 'number' ? b.sortOrder : Infinity;
+            if (ao !== bo) return ao - bo;
+            const ad = new Date(a.createdAt || 0).getTime();
+            const bd = new Date(b.createdAt || 0).getTime();
+            return bd - ad;
+          });
+          siblings.forEach((s, i) => { s.sortOrder = i; });
+          const idx = siblings.findIndex(f => f.id === item.id);
+          const swapIdx = action === 'move-mockup-up' ? idx - 1 : idx + 1;
           if (idx < 0 || swapIdx < 0 || swapIdx >= siblings.length) return;
           const other = siblings[swapIdx];
           const temp = item.sortOrder;
