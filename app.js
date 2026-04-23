@@ -402,8 +402,40 @@ const JiraService = {
     return { user: me, path: 'Code Engine' };
   },
 
+  // Derive the Jira reporter username from the current Domo user.
+  // Domo exposes the signed-in user's email via domo.env.userEmail;
+  // our Jira usernames are the email prefix (e.g. chris.wright@domo.com
+  // → chris.wright). Returns null if unavailable so callers can skip
+  // the field and fall back to the token owner.
+  _currentReporterName() {
+    try {
+      const env = (typeof domo !== 'undefined' && domo && domo.env) ? domo.env : (typeof window !== 'undefined' && window.domo && window.domo.env) || null;
+      const email = env && env.userEmail;
+      if (email && typeof email === 'string' && email.includes('@')) {
+        return email.split('@')[0];
+      }
+    } catch {}
+    return null;
+  },
+
   async createIssue(fields) {
-    return this._call('POST', '/issue', { fields });
+    // Inject reporter if not already set and we can identify the Domo user.
+    if (!fields.reporter) {
+      const reporter = this._currentReporterName();
+      if (reporter) fields.reporter = { name: reporter };
+    }
+    try {
+      return await this._call('POST', '/issue', { fields });
+    } catch (e) {
+      // If Jira rejects the reporter (unknown user / permission), retry
+      // without it so the creation still succeeds.
+      if (fields.reporter && String(e && e.message || '').toLowerCase().includes('reporter')) {
+        const retryFields = { ...fields };
+        delete retryFields.reporter;
+        return this._call('POST', '/issue', { fields: retryFields });
+      }
+      throw e;
+    }
   },
 
   async createEpic(name, summary, squad) {
