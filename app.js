@@ -1430,7 +1430,7 @@ function openFeatureModal(featureId, projectId, opts) {
       ` : `
         <div class="form-group">
           <label class="form-checkbox">
-            <input type="checkbox" id="feat-create-jira">
+            <input type="checkbox" id="feat-create-jira" ${opts.createJira ? 'checked' : ''}>
             Create Jira issue${epicLinkKey ? ' (linked to ' + Utils.escapeHtml(epicLinkKey) + ')' : ''}
           </label>
         </div>
@@ -2157,6 +2157,12 @@ function openMockUpCreateFlow(laneStatus) {
           <option value="">— None (standalone) —</option>
         </select>
       </div>
+      <div class="form-group">
+        <label class="form-checkbox">
+          <input type="checkbox" id="mockup-create-jira" checked>
+          Create Jira issue
+        </label>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" data-action="modal-close">Cancel</button>
@@ -2167,6 +2173,7 @@ function openMockUpCreateFlow(laneStatus) {
     onOpen(modal) {
       const projectSel = modal.querySelector('#mockup-project');
       const epicSel = modal.querySelector('#mockup-epic');
+      const createJiraCb = modal.querySelector('#mockup-create-jira');
 
       function repopulateEpics() {
         const pid = projectSel.value;
@@ -2180,11 +2187,13 @@ function openMockUpCreateFlow(laneStatus) {
       modal.querySelector('#mockup-continue').addEventListener('click', () => {
         const projectId = projectSel.value;
         const epicId = epicSel.value || '';
+        const createJira = !!createJiraCb.checked;
         Modal.close();
         openFeatureModal(null, projectId, {
           forceType: 'MockUp',
           forceStatus: laneStatus,
-          parentEpicId: epicId
+          parentEpicId: epicId,
+          createJira
         });
       });
     }
