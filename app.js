@@ -87,7 +87,18 @@ const CONFIG = {
     'On Hold': 'Blocked',
     'Blocked': 'Blocked'
   },
-  jiraInstance: 'https://onjira.domo.com'
+  jiraInstance: 'https://onjira.domo.com',
+  // Hardcoded assignee list — Jira Server uses the `name` field for assignment.
+  // Add/remove here and republish to update the dropdown.
+  designers: [
+    { name: 'chris.wright',   displayName: 'Chris Wright' },
+    { name: 'ellen.lingwall', displayName: 'Ellen Lingwall' },
+    { name: 'lauren.jensen',  displayName: 'Lauren Jensen' },
+    { name: 'brandon.king',   displayName: 'Brandon King' },
+    { name: 'khushboo',       displayName: 'Khushboo' },
+    { name: 'Devin.LuBean',   displayName: 'Devin LuBean' },
+    { name: 'phillip.fuchs',  displayName: 'Phillip Fuchs' }
+  ]
 };
 
 // ===== STATE =====
@@ -1374,6 +1385,13 @@ function openFeatureModal(featureId, projectId, opts) {
           ${CONFIG.squads.map(s => `<option value="${s}" ${(feature.squad || (project && project.squad) || '') === s ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
       </div>
+      <div class="form-group">
+        <label class="form-label">Assignee</label>
+        <select class="form-select" id="feat-assignee">
+          <option value="">— Unassigned —</option>
+          ${CONFIG.designers.map(d => `<option value="${d.name}" ${feature.assignee === d.name ? 'selected' : ''}>${Utils.escapeHtml(d.displayName)}</option>`).join('')}
+        </select>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Start Date</label>
@@ -1452,6 +1470,7 @@ function openFeatureModal(featureId, projectId, opts) {
           status: newStatus,
           type: newType,
           squad: modal.querySelector('#feat-squad').value,
+          assignee: modal.querySelector('#feat-assignee').value || '',
           startDate: modal.querySelector('#feat-start').value || null,
           endDate: modal.querySelector('#feat-end').value || null,
           jiraKey: isEdit ? (feature.jiraKey || '') : '',
@@ -1557,12 +1576,14 @@ function openFeatureModal(featureId, projectId, opts) {
           }
         }
 
-        // 2. Field push (title/description/mock link)
+        // 2. Field push (title/description/mock link/assignee)
         if (jiraOk && jiraKeysToSync.length > 0) {
           const nameChanged = name !== (feature.name || '');
           const descChanged = newDesc !== (feature.description || '');
           const mockChanged = newMockLink !== (feature.mockLink || '');
-          if (nameChanged || descChanged || mockChanged) {
+          const newAssignee = doc.assignee || '';
+          const assigneeChanged = newAssignee !== (feature.assignee || '');
+          if (nameChanged || descChanged || mockChanged || assigneeChanged) {
             try {
               // Build Jira description with mock link
               let jiraDesc = newDesc || '';
@@ -1573,6 +1594,7 @@ function openFeatureModal(featureId, projectId, opts) {
                 const fields = {};
                 if (nameChanged) fields.summary = name;
                 if (descChanged || mockChanged) fields.description = jiraDesc;
+                if (assigneeChanged) fields.assignee = newAssignee ? { name: newAssignee } : null;
                 await JiraService.updateIssueFields(jk, fields);
               }
               if (!jiraSynced) Toast.success('Synced to Jira');
@@ -2028,8 +2050,16 @@ function renderMockCard(feature) {
   const parentEpic = feature.parentEpicId
     ? state.features.find(f => f.id === feature.parentEpicId)
     : null;
-  const squad = feature.squad || '';
-  const initials = squad ? squad.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() : '';
+  // Prefer assignee over squad; fall back to squad, then unassigned.
+  const assigneeName = feature.assignee || '';
+  const designer = assigneeName ? CONFIG.designers.find(d => d.name === assigneeName) : null;
+  const ownerDisplay = designer ? designer.displayName : (assigneeName || feature.squad || '');
+  const ownerParts = ownerDisplay.trim().split(/\s+/);
+  const initials = ownerDisplay
+    ? (ownerParts.length > 1
+        ? (ownerParts[0][0] + ownerParts[ownerParts.length - 1][0]).toUpperCase()
+        : ownerDisplay.slice(0, 2).toUpperCase())
+    : '';
   const dueDate = feature.endDate ? Utils.formatDate(feature.endDate) : '';
   const mockLink = feature.mockLink || '';
 
@@ -2050,8 +2080,8 @@ function renderMockCard(feature) {
         </div>
       ` : ''}
       <div class="card-footer">
-        ${squad
-          ? `<div class="avatar">${Utils.escapeHtml(initials || '?')}</div><span>${Utils.escapeHtml(squad)}</span>`
+        ${ownerDisplay
+          ? `<div class="avatar">${Utils.escapeHtml(initials || '?')}</div><span>${Utils.escapeHtml(ownerDisplay)}</span>`
           : `<div class="avatar unassigned">&mdash;</div><span>Unassigned</span>`}
         ${dueDate ? `<div class="footer-right"><span class="due-date">${Utils.escapeHtml(dueDate)}</span></div>` : ''}
       </div>
