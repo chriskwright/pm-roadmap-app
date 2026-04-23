@@ -1195,6 +1195,9 @@ details.dropdown {
   position: relative;
   display: inline-block;
 }
+details.dropdown[open] {
+  z-index: 9999;
+}
 details.dropdown > summary {
   list-style: none;
   cursor: pointer;
