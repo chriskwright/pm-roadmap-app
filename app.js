@@ -2120,10 +2120,13 @@ function renderMockCard(feature) {
   const parentEpic = feature.parentEpicId
     ? state.features.find(f => f.id === feature.parentEpicId)
     : null;
-  // Prefer assignee over squad; fall back to squad, then unassigned.
+  // Show only the assignee on the card — if unassigned, keep it
+  // "Unassigned" rather than falling back to the squad (which was
+  // confusing: setting the picker to "Unassigned" still showed the
+  // team name).
   const assigneeName = feature.assignee || '';
   const designer = assigneeName ? CONFIG.designers.find(d => d.name === assigneeName) : null;
-  const ownerDisplay = designer ? designer.displayName : (assigneeName || feature.squad || '');
+  const ownerDisplay = designer ? designer.displayName : assigneeName;
   const ownerParts = ownerDisplay.trim().split(/\s+/);
   const initials = ownerDisplay
     ? (ownerParts.length > 1
