@@ -636,7 +636,7 @@ function renderBoardView() {
   return `
     <div class="board-view">
       <div class="page-header">
-        <div class="page-title">AI, Apps, BI, and Semantic Roadmap</div>
+        <div class="page-title">Apps and BI</div>
         <div class="page-subtitle">Projects start collapsed to reduce noise when each one contains many items.</div>
       </div>
       ${projects.map((project, index) => renderProjectGroup(project, index)).join('')}
