@@ -723,8 +723,22 @@ function renderTwoLanes(items, project) {
       <div class="lane-header">
         <span class="lane-label">STANDALONE ITEMS</span>
         <span class="lane-count">${otherCount}</span>
-        <div class="lane-actions">
-          <button class="btn btn-sm btn-secondary" data-action="add-other-item" data-project-id="${project.id}">+ Add</button>
+        <div class="lane-actions" style="position:relative">
+          <div class="split-btn">
+            <span class="split-main" data-action="add-other-item" data-project-id="${project.id}">+ Add</span>
+            <span class="split-arrow" data-action="toggle-add-menu" data-menu-id="standalone-menu-${project.id}">&#9662;</span>
+          </div>
+          <div class="add-menu hidden" id="standalone-menu-${project.id}">
+            <div class="menu-item" data-action="add-other-item" data-project-id="${project.id}">
+              <span class="menu-icon">＋</span>
+              <div><div class="menu-main">Create new item</div><div class="menu-hint">Draft a new story, bug, improvement, or mockup.</div></div>
+            </div>
+            <div class="menu-divider"></div>
+            <div class="menu-item" data-action="link-child" data-project-id="${project.id}" data-epic-id="">
+              <span class="menu-icon">&#128279;</span>
+              <div><div class="menu-main">Link existing Jira ticket</div><div class="menu-hint">Pull in a ticket that's already in Jira.</div></div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="lane-body">
