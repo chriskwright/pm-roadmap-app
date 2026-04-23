@@ -97,6 +97,7 @@ const state = {
   jiraTickets: [],
   currentView: 'board',
   statusFilter: 'all',
+  typeFilter: 'all',
   searchQuery: '',
   collapsedProjects: new Set(),
   collapsedEpics: new Set(),
@@ -546,8 +547,6 @@ const Modal = {
 function renderHeader() {
   const totalProjects = state.projects.length;
   const totalFeatures = state.features.length;
-  const doneFeatures = state.features.filter(f => f.status === 'Done').length;
-  const completionPct = totalFeatures > 0 ? Math.round((doneFeatures / totalFeatures) * 100) : 0;
 
   return `
     <header class="app-header">
@@ -563,10 +562,6 @@ function renderHeader() {
         <div class="stat-item">
           <span class="stat-value">${totalFeatures}</span>
           <span>Features</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value success">${completionPct}%</span>
-          <span>Complete</span>
         </div>
       </div>
       <div class="header-actions">
@@ -598,6 +593,10 @@ function renderToolbar() {
         <option value="In Progress" ${state.statusFilter === 'In Progress' ? 'selected' : ''}>In Progress</option>
         <option value="Done" ${state.statusFilter === 'Done' ? 'selected' : ''}>Done</option>
         <option value="Blocked" ${state.statusFilter === 'Blocked' ? 'selected' : ''}>Blocked</option>
+      </select>
+      <select class="filter-select" data-action="type-filter">
+        <option value="all" ${state.typeFilter === 'all' ? 'selected' : ''}>All Types</option>
+        ${CONFIG.itemTypes.map(t => `<option value="${t}" ${state.typeFilter === t ? 'selected' : ''}>${t}</option>`).join('')}
       </select>
       <div class="toolbar-spacer"></div>
       <button class="btn btn-secondary btn-sm" data-action="toggle-collapse-all">
@@ -1889,6 +1888,12 @@ function getFilteredProjects() {
     });
   }
 
+  if (state.typeFilter !== 'all') {
+    projects = projects.filter(p =>
+      getProjectFeatures(p.id).some(f => (f.type || 'Story') === state.typeFilter)
+    );
+  }
+
   return projects;
 }
 
@@ -1896,6 +1901,26 @@ function filterFeatures(features) {
   let filtered = features;
   if (state.statusFilter !== 'all') {
     filtered = filtered.filter(f => f.status === state.statusFilter);
+  }
+  if (state.typeFilter !== 'all') {
+    // Keep matches and their parent epic (so the epic container still renders)
+    const keep = new Set();
+    filtered.forEach(f => {
+      if ((f.type || 'Story') === state.typeFilter) {
+        keep.add(f.id);
+        if (f.parentEpicId) keep.add(f.parentEpicId);
+      }
+    });
+    // Also keep epics that have any child matching the type
+    filtered.forEach(f => {
+      if (f.type === 'Epic') {
+        const hasMatchingChild = state.features.some(c =>
+          c.parentEpicId === f.id && (c.type || 'Story') === state.typeFilter
+        );
+        if (hasMatchingChild) keep.add(f.id);
+      }
+    });
+    filtered = filtered.filter(f => keep.has(f.id));
   }
   if (state.searchQuery) {
     const q = state.searchQuery.toLowerCase();
@@ -2480,6 +2505,15 @@ function bindEvents() {
   if (filterSelect) {
     filterSelect.addEventListener('change', (e) => {
       state.statusFilter = e.target.value;
+      render();
+    });
+  }
+
+  // Type filter
+  const typeSelect = app.querySelector('[data-action="type-filter"]');
+  if (typeSelect) {
+    typeSelect.addEventListener('change', (e) => {
+      state.typeFilter = e.target.value;
       render();
     });
   }
