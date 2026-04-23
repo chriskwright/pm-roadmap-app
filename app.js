@@ -753,7 +753,9 @@ function renderEpicContainer(epic, allItems, project) {
   return `
     <div class="epic-container" data-epic-id="${epic.id}">
       <div class="epic-header" data-action="toggle-epic" data-feature-id="${epic.id}">
-        <span class="epic-caret ${isCollapsed ? 'collapsed' : ''}">${isCollapsed ? '&#9656;' : '&#9662;'}</span>
+        <button class="epic-expand-btn" aria-label="Toggle epic" aria-expanded="${!isCollapsed}">
+          <span>${isCollapsed ? '&#9656;' : '&#9662;'}</span>
+        </button>
         <div class="epic-content">
           <div class="epic-title-row">
             <span class="epic-title">${Utils.escapeHtml(epic.name)}</span>
