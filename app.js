@@ -2321,6 +2321,7 @@ function render() {
         : renderGanttView()}
     </div>`;
   bindEvents();
+  bindDropdownTriggers();
 
   // Sync Gantt label scrolling
   if (state.currentView === 'gantt') {
@@ -2331,6 +2332,26 @@ function render() {
   if (state.currentView === 'design') {
     bindDesignBoardDragDrop();
   }
+}
+
+// Direct click listeners on every dropdown trigger — defense in depth;
+// the #app delegate should catch these but users have seen clicks do
+// nothing in some environments. Runs every render since innerHTML
+// replaces the elements.
+function bindDropdownTriggers() {
+  document.querySelectorAll('[data-action="toggle-add-menu"]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const menuId = el.dataset.menuId;
+      if (!menuId) return;
+      const menu = document.getElementById(menuId);
+      if (!menu) return;
+      const wasHidden = menu.classList.contains('hidden');
+      document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
+      if (wasHidden) menu.classList.remove('hidden');
+    });
+  });
 }
 
 // ===== EVENT BINDING =====
