@@ -1898,17 +1898,11 @@ function getFilteredProjects() {
   if (state.searchQuery) {
     const q = state.searchQuery.toLowerCase();
     const matchingProjectIds = new Set();
-    // Match projects by name
     projects.forEach(p => {
-      if (p.name.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q)) {
-        matchingProjectIds.add(p.id);
-      }
+      if (featureMatchesSearch(p, q)) matchingProjectIds.add(p.id);
     });
-    // Match features (include their parent project)
     state.features.forEach(f => {
-      if (f.name.toLowerCase().includes(q) || (f.description || '').toLowerCase().includes(q)) {
-        matchingProjectIds.add(f.projectId);
-      }
+      if (featureMatchesSearch(f, q)) matchingProjectIds.add(f.projectId);
     });
     projects = projects.filter(p => matchingProjectIds.has(p.id));
   }
@@ -1957,12 +1951,25 @@ function filterFeatures(features) {
   }
   if (state.searchQuery) {
     const q = state.searchQuery.toLowerCase();
-    filtered = filtered.filter(f =>
-      f.name.toLowerCase().includes(q) ||
-      (f.description || '').toLowerCase().includes(q)
-    );
+    filtered = filtered.filter(f => featureMatchesSearch(f, q));
   }
   return filtered;
+}
+
+// Search matcher — looks at name, description, Jira key, and assignee
+// (by both username and display name lookup from CONFIG.designers).
+// `q` is already lowercased by the caller.
+function featureMatchesSearch(f, q) {
+  if ((f.name || '').toLowerCase().includes(q)) return true;
+  if ((f.description || '').toLowerCase().includes(q)) return true;
+  if ((f.jiraKey || '').toLowerCase().includes(q)) return true;
+  const assigneeName = (f.assignee || '').toLowerCase();
+  if (assigneeName && assigneeName.includes(q)) return true;
+  if (assigneeName) {
+    const designer = CONFIG.designers && CONFIG.designers.find(d => d.name.toLowerCase() === assigneeName);
+    if (designer && designer.displayName.toLowerCase().includes(q)) return true;
+  }
+  return false;
 }
 
 // ===== DESIGN BOARD (MockUp Kanban) =====
@@ -2668,20 +2675,22 @@ function bindEvents() {
     }
   });
 
-  // Search
-  const searchInput = app.querySelector('[data-action="search-input"]');
-  if (searchInput) {
-    searchInput.addEventListener('input', Utils.debounce((e) => {
-      state.searchQuery = e.target.value;
-      render();
-      // Re-focus search and set cursor to end
-      const newInput = document.querySelector('[data-action="search-input"]');
-      if (newInput) {
-        newInput.focus();
-        newInput.selectionStart = newInput.selectionEnd = newInput.value.length;
-      }
-    }, 250));
-  }
+  // Search — delegated on #app so the listener survives re-renders
+  // (innerHTML in render() replaces the <input> on every pass).
+  const debouncedSearch = Utils.debounce((val) => {
+    state.searchQuery = val;
+    render();
+    const newInput = document.querySelector('[data-action="search-input"]');
+    if (newInput) {
+      newInput.focus();
+      newInput.selectionStart = newInput.selectionEnd = newInput.value.length;
+    }
+  }, 250);
+  app.addEventListener('input', (e) => {
+    const t = e.target.closest('[data-action="search-input"]');
+    if (!t) return;
+    debouncedSearch(t.value);
+  });
 
   // Filter selects — delegated on #app so they survive re-renders
   // (innerHTML in render() replaces the <select> nodes each pass).
