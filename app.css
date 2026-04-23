@@ -927,6 +927,17 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  max-height: 4000px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height 300ms ease, opacity 200ms ease,
+              padding-top 200ms ease, padding-bottom 200ms ease;
+}
+.epic-body.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .epic-empty {

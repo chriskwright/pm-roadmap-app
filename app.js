@@ -809,7 +809,7 @@ function renderEpicContainer(epic, allItems, project) {
           <button class="btn-icon" data-action="delete-item" data-feature-id="${epic.id}" title="Delete">&#128465;</button>
         </div>
       </div>
-      ${isCollapsed ? '' : `<div class="epic-body">
+      <div class="epic-body ${isCollapsed ? 'collapsed' : ''}">
         ${children.length > 0 ? children.map(child => renderItemRow(child)).join('') : `
           <div class="epic-empty">No child items — add stories, bugs, or improvements</div>
         `}
@@ -827,7 +827,7 @@ function renderEpicContainer(epic, allItems, project) {
             </div>
           </div>
         </details>
-      </div>`}
+      </div>
     </div>`;
 }
 
@@ -2364,6 +2364,10 @@ function bindDesignBoardDragDrop() {
 // ===== RENDER =====
 function render() {
   const app = document.getElementById('app');
+  // Preserve scroll across the innerHTML rewrite so toggling an epic
+  // (or any re-render) doesn't jump the viewport to the top.
+  const prevMain = app.querySelector('.app-main');
+  const savedScroll = prevMain ? prevMain.scrollTop : 0;
   app.innerHTML = `
     ${renderHeader()}
     ${state.currentView === 'design' ? '' : renderToolbar()}
@@ -2372,6 +2376,8 @@ function render() {
         : state.currentView === 'design' ? renderDesignBoardView()
         : renderGanttView()}
     </div>`;
+  const newMain = app.querySelector('.app-main');
+  if (newMain) newMain.scrollTop = savedScroll;
   bindEvents();
   bindDetailsPositioning();
   bindScrollClose();
