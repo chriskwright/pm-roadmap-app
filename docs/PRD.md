@@ -136,7 +136,7 @@ across platforms.
 | External Integration | Jira REST API v2 via Domo Proxy |
 | Jira Instance | https://onjira.domo.com |
 | Jira Project | DOMO |
-| Auth Method | Personal Access Token (Bearer) |
+| Auth Method | Jira API Token (Bearer) |
 | Deployment | Domo CLI |
 | Version Control | GitHub |
 | AI Assistance | Claude (development only) |

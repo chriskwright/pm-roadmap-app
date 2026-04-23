@@ -3,7 +3,7 @@
 ## Connection Details
 - **Instance**: https://onjira.domo.com
 - **API Version**: REST API v2
-- **Auth Method**: Personal Access Token (Bearer)
+- **Auth Method**: Jira API Token (Bearer)
 - **Project Key**: DOMO
 
 ## Endpoints
