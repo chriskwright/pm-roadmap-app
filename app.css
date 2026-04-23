@@ -1200,6 +1200,11 @@ details.dropdown > summary {
 }
 details.dropdown > summary::-webkit-details-marker { display: none; }
 details.dropdown > summary::marker { display: none; }
+/* Wrap styled content in a child span instead of putting layout styles
+   directly on the summary — display: flex on summary can break the
+   native toggle in some engines. */
+details.dropdown > summary.add-child-summary { display: block; }
+details.dropdown > summary.add-child-summary > .add-child-card { width: 100%; }
 details.dropdown .split-summary {
   display: inline-flex;
   align-items: center;

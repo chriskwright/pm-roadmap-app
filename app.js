@@ -782,7 +782,7 @@ function renderEpicContainer(epic, allItems, project) {
           <div class="epic-empty">No child items — add stories, bugs, or improvements</div>
         `}
         <details class="dropdown add-child-wrap">
-          <summary class="add-child-card">+ Add child item &#9662;</summary>
+          <summary class="add-child-summary"><span class="add-child-card">+ Add child item &#9662;</span></summary>
           <div class="add-menu">
             <div class="menu-item" data-action="add-child-item" data-project-id="${epic.projectId}" data-epic-id="${epic.id}">
               <span class="menu-icon">＋</span>
