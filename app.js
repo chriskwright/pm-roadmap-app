@@ -2317,6 +2317,7 @@ function render() {
         : renderGanttView()}
     </div>`;
   bindEvents();
+  bindDetailsPositioning();
 
   // Sync Gantt label scrolling
   if (state.currentView === 'gantt') {
@@ -2327,6 +2328,24 @@ function render() {
   if (state.currentView === 'design') {
     bindDesignBoardDragDrop();
   }
+}
+
+// Position fixed-positioned .add-menu relative to its summary's viewport
+// coordinates when a <details> is opened. Using position:fixed on the
+// menu is the only reliable way to escape every ancestor's stacking
+// context/overflow in this Domo-iframed layout.
+function bindDetailsPositioning() {
+  document.querySelectorAll('details.dropdown').forEach(d => {
+    d.addEventListener('toggle', () => {
+      if (!d.open) return;
+      const summary = d.querySelector('summary');
+      const menu = d.querySelector('.add-menu');
+      if (!summary || !menu) return;
+      const r = summary.getBoundingClientRect();
+      menu.style.top = (r.bottom + 4) + 'px';
+      menu.style.left = (r.left + r.width / 2) + 'px';
+    });
+  });
 }
 
 // ===== EVENT BINDING =====

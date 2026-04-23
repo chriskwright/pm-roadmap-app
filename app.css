@@ -1182,11 +1182,11 @@ html, body {
   width: 260px;
   padding: 4px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 50%;
+  position: fixed;
+  top: 0;
+  left: 0;
   transform: translateX(-50%);
-  z-index: 1000;
+  z-index: 9999;
 }
 
 /* Native <details> dropdown — replaces JS-toggled .add-menu wrappers.
