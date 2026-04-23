@@ -2334,24 +2334,28 @@ function render() {
   }
 }
 
-// Direct click listeners on every dropdown trigger — defense in depth;
-// the #app delegate should catch these but users have seen clicks do
-// nothing in some environments. Runs every render since innerHTML
-// replaces the elements.
+// Document-level capture-phase handler for dropdown triggers. Bound once.
+// Real mouse clicks reach document during capture but get swallowed
+// before target-phase listeners fire in the Domo iframe sandbox — so
+// intercept at the earliest point (document capture) and do the work
+// there instead of relying on target/bubble listeners.
+let _dropdownCaptureBound = false;
 function bindDropdownTriggers() {
-  document.querySelectorAll('[data-action="toggle-add-menu"]').forEach(el => {
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-      const menuId = el.dataset.menuId;
-      if (!menuId) return;
-      const menu = document.getElementById(menuId);
-      if (!menu) return;
-      const wasHidden = menu.classList.contains('hidden');
-      document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
-      if (wasHidden) menu.classList.remove('hidden');
-    });
-  });
+  if (_dropdownCaptureBound) return;
+  _dropdownCaptureBound = true;
+  document.addEventListener('click', (e) => {
+    const trigger = e.target.closest && e.target.closest('[data-action="toggle-add-menu"]');
+    if (!trigger) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const menuId = trigger.dataset.menuId;
+    if (!menuId) return;
+    const menu = document.getElementById(menuId);
+    if (!menu) return;
+    const wasHidden = menu.classList.contains('hidden');
+    document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
+    if (wasHidden) menu.classList.remove('hidden');
+  }, true);
 }
 
 // ===== EVENT BINDING =====
