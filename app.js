@@ -2318,6 +2318,7 @@ function render() {
     </div>`;
   bindEvents();
   bindDetailsPositioning();
+  bindScrollClose();
 
   // Sync Gantt label scrolling
   if (state.currentView === 'gantt') {
@@ -2328,6 +2329,23 @@ function render() {
   if (state.currentView === 'design') {
     bindDesignBoardDragDrop();
   }
+}
+
+// Close any open dropdowns/popovers on scroll. Fixed-positioned menus
+// don't move with their trigger, so leaving them open during scroll is
+// visually wrong. Bound once; capture phase catches scroll on any
+// descendant since scroll events don't bubble.
+let _scrollCloseBound = false;
+function bindScrollClose() {
+  if (_scrollCloseBound) return;
+  _scrollCloseBound = true;
+  window.addEventListener('scroll', () => {
+    document.querySelectorAll('details.dropdown[open]').forEach(d => { d.open = false; });
+    let changed = false;
+    if (state.designEpicPopoverOpen) { state.designEpicPopoverOpen = false; changed = true; }
+    if (state.assigneePickerForId) { state.assigneePickerForId = null; changed = true; }
+    if (changed && state.currentView === 'design') render();
+  }, true);
 }
 
 // Position fixed-positioned .add-menu relative to its summary's viewport
