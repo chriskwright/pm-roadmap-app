@@ -1182,9 +1182,40 @@ html, body {
   padding: 4px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   position: absolute;
-  top: 28px;
+  top: calc(100% + 4px);
   right: 0;
   z-index: 10;
+}
+
+/* Native <details> dropdown — replaces JS-toggled .add-menu wrappers.
+   Browser handles open/close on summary click; no click handler needed. */
+details.dropdown {
+  position: relative;
+  display: inline-block;
+}
+details.dropdown > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+details.dropdown > summary::-webkit-details-marker { display: none; }
+details.dropdown > summary::marker { display: none; }
+details.dropdown .split-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: #FFFFFF;
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  transition: background 0.15s ease;
+}
+details.dropdown[open] .split-summary,
+details.dropdown .split-summary:hover {
+  background: #F1EFE8;
 }
 
 .menu-item {

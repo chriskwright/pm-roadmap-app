@@ -695,22 +695,21 @@ function renderTwoLanes(items, project) {
       <div class="lane-header">
         <span class="lane-label">EPICS</span>
         <span class="lane-count">${epicCount}</span>
-        <div class="lane-actions" style="position:relative">
-          <div class="split-btn">
-            <span class="split-main" data-action="add-epic" data-project-id="${project.id}">+ Add Epic</span>
-            <span class="split-arrow" data-action="toggle-add-menu" data-menu-id="epic-menu-${project.id}">&#9662;</span>
-          </div>
-          <div class="add-menu hidden" id="epic-menu-${project.id}">
-            <div class="menu-item" data-action="add-epic" data-project-id="${project.id}">
-              <span class="menu-icon">＋</span>
-              <div><div class="menu-main">Create new epic</div><div class="menu-hint">Draft a new epic in the roadmap.</div></div>
+        <div class="lane-actions">
+          <details class="dropdown">
+            <summary class="split-summary">+ Add Epic &#9662;</summary>
+            <div class="add-menu">
+              <div class="menu-item" data-action="add-epic" data-project-id="${project.id}">
+                <span class="menu-icon">＋</span>
+                <div><div class="menu-main">Create new epic</div><div class="menu-hint">Draft a new epic in the roadmap.</div></div>
+              </div>
+              <div class="menu-divider"></div>
+              <div class="menu-item" data-action="link-epic" data-project-id="${project.id}">
+                <span class="menu-icon">&#128279;</span>
+                <div><div class="menu-main">Link existing Jira epic</div><div class="menu-hint">Pull in an epic that's already in Jira.</div></div>
+              </div>
             </div>
-            <div class="menu-divider"></div>
-            <div class="menu-item" data-action="link-epic" data-project-id="${project.id}">
-              <span class="menu-icon">&#128279;</span>
-              <div><div class="menu-main">Link existing Jira epic</div><div class="menu-hint">Pull in an epic that's already in Jira.</div></div>
-            </div>
-          </div>
+          </details>
         </div>
       </div>
       <div class="lane-body">
@@ -723,22 +722,21 @@ function renderTwoLanes(items, project) {
       <div class="lane-header">
         <span class="lane-label">STANDALONE ITEMS</span>
         <span class="lane-count">${otherCount}</span>
-        <div class="lane-actions" style="position:relative">
-          <div class="split-btn">
-            <span class="split-main" data-action="add-other-item" data-project-id="${project.id}">+ Add</span>
-            <span class="split-arrow" data-action="toggle-add-menu" data-menu-id="standalone-menu-${project.id}">&#9662;</span>
-          </div>
-          <div class="add-menu hidden" id="standalone-menu-${project.id}">
-            <div class="menu-item" data-action="add-other-item" data-project-id="${project.id}">
-              <span class="menu-icon">＋</span>
-              <div><div class="menu-main">Create new item</div><div class="menu-hint">Draft a new story, bug, improvement, or mockup.</div></div>
+        <div class="lane-actions">
+          <details class="dropdown">
+            <summary class="split-summary">+ Add &#9662;</summary>
+            <div class="add-menu">
+              <div class="menu-item" data-action="add-other-item" data-project-id="${project.id}">
+                <span class="menu-icon">＋</span>
+                <div><div class="menu-main">Create new item</div><div class="menu-hint">Draft a new story, bug, improvement, or mockup.</div></div>
+              </div>
+              <div class="menu-divider"></div>
+              <div class="menu-item" data-action="link-child" data-project-id="${project.id}" data-epic-id="">
+                <span class="menu-icon">&#128279;</span>
+                <div><div class="menu-main">Link existing Jira ticket</div><div class="menu-hint">Pull in a ticket that's already in Jira.</div></div>
+              </div>
             </div>
-            <div class="menu-divider"></div>
-            <div class="menu-item" data-action="link-child" data-project-id="${project.id}" data-epic-id="">
-              <span class="menu-icon">&#128279;</span>
-              <div><div class="menu-main">Link existing Jira ticket</div><div class="menu-hint">Pull in a ticket that's already in Jira.</div></div>
-            </div>
-          </div>
+          </details>
         </div>
       </div>
       <div class="lane-body">
@@ -783,11 +781,9 @@ function renderEpicContainer(epic, allItems, project) {
         ${children.length > 0 ? children.map(child => renderItemRow(child)).join('') : `
           <div class="epic-empty">No child items — add stories, bugs, or improvements</div>
         `}
-        <div class="add-child-wrap" style="position:relative">
-          <div class="add-child-card" data-action="toggle-add-menu" data-menu-id="child-menu-${epic.id}">
-            + Add child item &#9662;
-          </div>
-          <div class="add-menu hidden" id="child-menu-${epic.id}">
+        <details class="dropdown add-child-wrap">
+          <summary class="add-child-card">+ Add child item &#9662;</summary>
+          <div class="add-menu">
             <div class="menu-item" data-action="add-child-item" data-project-id="${epic.projectId}" data-epic-id="${epic.id}">
               <span class="menu-icon">＋</span>
               <div><div class="menu-main">Create new child item</div><div class="menu-hint">Draft a new story, bug, improvement, or mockup.</div></div>
@@ -798,7 +794,7 @@ function renderEpicContainer(epic, allItems, project) {
               <div><div class="menu-main">Link existing Jira ticket</div><div class="menu-hint">Pull in an existing Jira story, bug, or improvement.</div></div>
             </div>
           </div>
-        </div>
+        </details>
       </div>`}
     </div>`;
 }
@@ -2321,7 +2317,6 @@ function render() {
         : renderGanttView()}
     </div>`;
   bindEvents();
-  bindDropdownTriggers();
 
   // Sync Gantt label scrolling
   if (state.currentView === 'gantt') {
@@ -2334,30 +2329,6 @@ function render() {
   }
 }
 
-// Document-level capture-phase handler for dropdown triggers. Bound once.
-// Real mouse clicks reach document during capture but get swallowed
-// before target-phase listeners fire in the Domo iframe sandbox — so
-// intercept at the earliest point (document capture) and do the work
-// there instead of relying on target/bubble listeners.
-let _dropdownCaptureBound = false;
-function bindDropdownTriggers() {
-  if (_dropdownCaptureBound) return;
-  _dropdownCaptureBound = true;
-  document.addEventListener('click', (e) => {
-    const trigger = e.target.closest && e.target.closest('[data-action="toggle-add-menu"]');
-    if (!trigger) return;
-    e.stopPropagation();
-    e.preventDefault();
-    const menuId = trigger.dataset.menuId;
-    if (!menuId) return;
-    const menu = document.getElementById(menuId);
-    if (!menu) return;
-    const wasHidden = menu.classList.contains('hidden');
-    document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
-    if (wasHidden) menu.classList.remove('hidden');
-  }, true);
-}
-
 // ===== EVENT BINDING =====
 let _eventsBound = false;
 function bindEvents() {
@@ -2365,10 +2336,10 @@ function bindEvents() {
   if (_eventsBound) return;
   _eventsBound = true;
 
-  // Close dropdown menus when clicking outside
+  // Close any open <details> dropdowns when clicking outside them
   document.addEventListener('click', (e) => {
-    if (!e.target.closest('.split-arrow') && !e.target.closest('.add-child-card') && !e.target.closest('.add-menu')) {
-      document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
+    if (!e.target.closest('details.dropdown')) {
+      document.querySelectorAll('details.dropdown[open]').forEach(d => { d.open = false; });
     }
     // Close epic-filter popover on outside click
     if (state.designEpicPopoverOpen && !e.target.closest('[data-epic-popover]') && !e.target.closest('[data-action="toggle-epic-filter"]')) {
@@ -2573,35 +2544,24 @@ function bindEvents() {
         openFeatureModal(null, target.dataset.projectId);
         break;
       case 'add-epic':
-        document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
+        document.querySelectorAll('details.dropdown[open]').forEach(d => { d.open = false; });
         openFeatureModal(null, target.dataset.projectId, { forceType: 'Epic' });
         break;
       case 'add-other-item':
+        document.querySelectorAll('details.dropdown[open]').forEach(d => { d.open = false; });
         openFeatureModal(null, target.dataset.projectId, { forceType: 'Story' });
         break;
       case 'add-child-item':
-        document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
+        document.querySelectorAll('details.dropdown[open]').forEach(d => { d.open = false; });
         openFeatureModal(null, target.dataset.projectId, { parentEpicId: target.dataset.epicId, forceType: 'Story' });
         break;
       case 'link-epic':
-        document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
+        document.querySelectorAll('details.dropdown[open]').forEach(d => { d.open = false; });
         openLinkJiraModal(target.dataset.projectId, { isEpic: true });
         break;
       case 'link-child':
-        document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
+        document.querySelectorAll('details.dropdown[open]').forEach(d => { d.open = false; });
         openLinkJiraModal(target.dataset.projectId, { isEpic: false, parentEpicId: target.dataset.epicId });
-        break;
-      case 'toggle-add-menu':
-        {
-          e.stopPropagation();
-          const menuId = target.dataset.menuId;
-          const menu = document.getElementById(menuId);
-          if (menu) {
-            const wasHidden = menu.classList.contains('hidden');
-            document.querySelectorAll('.add-menu').forEach(m => m.classList.add('hidden'));
-            if (wasHidden) menu.classList.remove('hidden');
-          }
-        }
         break;
       case 'edit-feature':
         openFeatureModal(target.dataset.featureId, null);
