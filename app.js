@@ -430,10 +430,12 @@ const JiraService = {
       const reporter = this._currentReporterName();
       if (reporter) fields.reporter = { name: reporter };
     }
-    // Append a link back to this app to the description so Jira's
-    // assignee/reporter notification emails include a way to return
-    // here. Idempotent — skips if the URL is already present.
-    if (CONFIG.appUrl) {
+    // Append a link back to this app to MockUp descriptions only, so
+    // designer assignees clicking through Jira's notification email
+    // land in the roadmap. Other issue types (Story/Bug/etc.) don't
+    // get the link to keep their descriptions clean.
+    const issueTypeName = fields.issuetype && fields.issuetype.name;
+    if (CONFIG.appUrl && issueTypeName === 'MockUp') {
       const current = typeof fields.description === 'string' ? fields.description : '';
       if (!current.includes(CONFIG.appUrl)) {
         fields.description = current
