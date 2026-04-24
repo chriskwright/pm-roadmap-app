@@ -2253,7 +2253,7 @@ a.jira-ticket-key:hover {
   gap: 12px;
   padding: 0 4px;
 }
-.lane {
+.kanban .lane {
   background: #F4F6F8;
   border-radius: 10px;
   padding: 10px;
@@ -2262,15 +2262,15 @@ a.jira-ticket-key:hover {
   flex-direction: column;
   transition: background 0.12s ease;
 }
-.lane.drop-target { background: #E4E1F5; }
-.lane-head {
+.kanban .lane.drop-target { background: #E4E1F5; }
+.kanban .lane-head {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
   padding: 0 4px;
 }
-.lane-dot {
+.kanban .lane-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -2279,14 +2279,14 @@ a.jira-ticket-key:hover {
 .dot-todo { background: #B4B2A9; }
 .dot-progress { background: #378ADD; }
 .dot-done { background: #1D9E75; }
-.lane-title {
+.kanban .lane-title {
   font-size: 12px;
   font-weight: 500;
   color: #1a1a1a;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-.lane-count {
+.kanban .lane-count {
   font-size: 11px;
   color: #888;
   background: #FFFFFF;
@@ -2294,8 +2294,8 @@ a.jira-ticket-key:hover {
   border-radius: 10px;
   font-weight: 500;
 }
-.lane-body { flex: 1; }
-.lane-empty {
+.kanban .lane-body { flex: 1; }
+.kanban .lane-empty {
   font-size: 11px;
   font-style: italic;
   color: #888;
@@ -2372,8 +2372,8 @@ a.jira-ticket-key:hover {
   background: rgba(0,0,0,0.06);
   color: #1a1a1a;
 }
-.lane-body .mock-card:first-child .card-reorder-btn[data-action="move-mockup-up"],
-.lane-body .mock-card:last-child .card-reorder-btn[data-action="move-mockup-down"] {
+.kanban .lane-body .mock-card:first-child .card-reorder-btn[data-action="move-mockup-up"],
+.kanban .lane-body .mock-card:last-child .card-reorder-btn[data-action="move-mockup-down"] {
   opacity: 0.25;
   pointer-events: none;
 }
