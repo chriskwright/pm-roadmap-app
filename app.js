@@ -1359,6 +1359,9 @@ function openFeatureModal(featureId, projectId, opts) {
   const hasJiraKey = isEdit && feature.jiraKey;
   const parentEpic = feature.parentEpicId ? state.features.find(f => f.id === feature.parentEpicId) : null;
   const epicLinkKey = (parentEpic && parentEpic.jiraKey) || (project && project.epicKey) || '';
+  const projectEpics = (feature.projectId || projectId)
+    ? state.features.filter(f => f.type === 'Epic' && f.projectId === (feature.projectId || projectId))
+    : [];
 
   Modal.open(`
     <div class="modal-header">
@@ -1426,10 +1429,13 @@ function openFeatureModal(featureId, projectId, opts) {
         <input class="form-input" id="feat-featureswitch" placeholder="Feature switch name..."
           value="${Utils.escapeHtml(feature.featureSwitch || '')}">
       </div>
-      ${epicLinkKey && feature.type !== 'Epic' ? `
+      ${feature.type !== 'Epic' && opts.forceType !== 'Epic' ? `
         <div class="form-group">
-          <label class="form-label">Epic Link</label>
-          <span class="epic-link-readonly">${Utils.escapeHtml(epicLinkKey)}</span>
+          <label class="form-label">Parent Epic</label>
+          <select class="form-select" id="feat-parent-epic">
+            <option value="">— None (standalone) —</option>
+            ${projectEpics.map(e => `<option value="${e.id}" ${feature.parentEpicId === e.id ? 'selected' : ''}>${Utils.escapeHtml(e.name)}${e.jiraKey ? ' (' + Utils.escapeHtml(e.jiraKey) + ')' : ''}</option>`).join('')}
+          </select>
         </div>
       ` : ''}
       ${hasJiraKey ? `
@@ -1470,11 +1476,15 @@ function openFeatureModal(featureId, projectId, opts) {
         const newType = modal.querySelector('#feat-type').value;
         const newMockLink = modal.querySelector('#feat-mocklink').value.trim();
         const newFeatureSwitch = modal.querySelector('#feat-featureswitch').value.trim();
+        const parentEpicSel = modal.querySelector('#feat-parent-epic');
+        const newParentEpicId = parentEpicSel
+          ? (parentEpicSel.value || '')
+          : (feature.parentEpicId || '');
         const doc = {
           id: isEdit ? feature.id : Utils.id(),
           _docId: isEdit ? feature._docId : undefined,
           projectId: feature.projectId || projectId,
-          parentEpicId: isEdit ? (feature.parentEpicId || '') : (feature.parentEpicId || ''),
+          parentEpicId: newParentEpicId,
           name,
           description: newDesc,
           mockLink: newMockLink,
@@ -1588,14 +1598,22 @@ function openFeatureModal(featureId, projectId, opts) {
           }
         }
 
-        // 2. Field push (title/description/mock link/assignee)
+        // 2. Field push (title/description/mock link/assignee/epic link)
         if (jiraOk && jiraKeysToSync.length > 0) {
           const nameChanged = name !== (feature.name || '');
           const descChanged = newDesc !== (feature.description || '');
           const mockChanged = newMockLink !== (feature.mockLink || '');
           const newAssignee = doc.assignee || '';
           const assigneeChanged = newAssignee !== (feature.assignee || '');
-          if (nameChanged || descChanged || mockChanged || assigneeChanged) {
+          const parentChanged = (doc.parentEpicId || '') !== (feature.parentEpicId || '');
+          let newEpicLinkKey = null;
+          if (parentChanged) {
+            if (doc.parentEpicId) {
+              const newParent = state.features.find(f => f.id === doc.parentEpicId);
+              newEpicLinkKey = (newParent && newParent.jiraKey) || null;
+            }
+          }
+          if (nameChanged || descChanged || mockChanged || assigneeChanged || parentChanged) {
             try {
               // Build Jira description with mock link
               let jiraDesc = newDesc || '';
@@ -1607,6 +1625,10 @@ function openFeatureModal(featureId, projectId, opts) {
                 if (nameChanged) fields.summary = name;
                 if (descChanged || mockChanged) fields.description = jiraDesc;
                 if (assigneeChanged) fields.assignee = newAssignee ? { name: newAssignee } : null;
+                // Only push epic-link change if the new parent has a Jira
+                // key (or we're clearing it); otherwise the local move
+                // happens but Jira keeps its existing link.
+                if (parentChanged) fields[CONFIG.customFields.epicLink] = newEpicLinkKey;
                 await JiraService.updateIssueFields(jk, fields);
               }
               if (!jiraSynced) Toast.success('Synced to Jira');
