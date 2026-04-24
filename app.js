@@ -114,6 +114,8 @@ const state = {
   collapsedEpics: new Set(),
   designEpicFilter: 'all',
   designEpicPopoverOpen: false,
+  designAssigneeFilter: 'all',
+  designAssigneePopoverOpen: false,
   assigneePickerForId: null,
   loading: true,
   useLocalStorage: false
@@ -2024,6 +2026,13 @@ function getDesignBoardMockUps() {
   if (state.designEpicFilter && state.designEpicFilter !== 'all') {
     mockUps = mockUps.filter(f => f.parentEpicId === state.designEpicFilter);
   }
+  if (state.designAssigneeFilter && state.designAssigneeFilter !== 'all') {
+    if (state.designAssigneeFilter === '__unassigned__') {
+      mockUps = mockUps.filter(f => !f.assignee);
+    } else {
+      mockUps = mockUps.filter(f => f.assignee === state.designAssigneeFilter);
+    }
+  }
   return mockUps;
 }
 
@@ -2054,6 +2063,14 @@ function renderDesignBoardView() {
   const epicFilterLabel = activeEpic ? activeEpic.name : 'All epics';
   const epicOptions = getMockUpEpicsForFilter();
 
+  let assigneeFilterLabel = 'All assignees';
+  if (state.designAssigneeFilter === '__unassigned__') {
+    assigneeFilterLabel = 'Unassigned';
+  } else if (state.designAssigneeFilter !== 'all') {
+    const d = CONFIG.designers.find(d => d.name === state.designAssigneeFilter);
+    assigneeFilterLabel = d ? d.displayName : state.designAssigneeFilter;
+  }
+
   return `
     <div class="design-board">
       <div class="design-page-header">
@@ -2071,6 +2088,21 @@ function renderDesignBoardView() {
               <button class="epic-filter-item ${state.designEpicFilter === 'all' ? 'active' : ''}" data-action="set-epic-filter" data-epic-id="all">All epics</button>
               ${epicOptions.map(ep => `
                 <button class="epic-filter-item ${state.designEpicFilter === ep.id ? 'active' : ''}" data-action="set-epic-filter" data-epic-id="${ep.id}">${Utils.escapeHtml(ep.name)}</button>
+              `).join('')}
+            </div>
+          ` : ''}
+        </div>
+        <div style="position:relative;">
+          <button class="filter-chip ${state.designAssigneeFilter !== 'all' ? 'active' : ''}" data-action="toggle-assignee-filter">
+            <span>${Utils.escapeHtml(assigneeFilterLabel)}</span>
+            <span class="filter-chip-caret">&#9662;</span>
+          </button>
+          ${state.designAssigneePopoverOpen ? `
+            <div class="epic-filter-popover" data-assignee-popover>
+              <button class="epic-filter-item ${state.designAssigneeFilter === 'all' ? 'active' : ''}" data-action="set-assignee-filter" data-assignee-filter="all">All assignees</button>
+              <button class="epic-filter-item ${state.designAssigneeFilter === '__unassigned__' ? 'active' : ''}" data-action="set-assignee-filter" data-assignee-filter="__unassigned__">Unassigned</button>
+              ${CONFIG.designers.map(d => `
+                <button class="epic-filter-item ${state.designAssigneeFilter === d.name ? 'active' : ''}" data-action="set-assignee-filter" data-assignee-filter="${d.name}">${Utils.escapeHtml(d.displayName)}</button>
               `).join('')}
             </div>
           ` : ''}
@@ -2399,6 +2431,7 @@ function bindScrollClose() {
     document.querySelectorAll('details.dropdown[open]').forEach(d => { d.open = false; });
     let changed = false;
     if (state.designEpicPopoverOpen) { state.designEpicPopoverOpen = false; changed = true; }
+    if (state.designAssigneePopoverOpen) { state.designAssigneePopoverOpen = false; changed = true; }
     if (state.assigneePickerForId) { state.assigneePickerForId = null; changed = true; }
     if (changed && state.currentView === 'design') render();
   }, true);
@@ -2437,6 +2470,11 @@ function bindEvents() {
     // Close epic-filter popover on outside click
     if (state.designEpicPopoverOpen && !e.target.closest('[data-epic-popover]') && !e.target.closest('[data-action="toggle-epic-filter"]')) {
       state.designEpicPopoverOpen = false;
+      if (state.currentView === 'design') render();
+    }
+    // Close assignee-filter popover on outside click
+    if (state.designAssigneePopoverOpen && !e.target.closest('[data-assignee-popover]') && !e.target.closest('[data-action="toggle-assignee-filter"]')) {
+      state.designAssigneePopoverOpen = false;
       if (state.currentView === 'design') render();
     }
     // Close assignee picker on outside click
@@ -2682,11 +2720,23 @@ function bindEvents() {
       case 'toggle-epic-filter':
         e.stopPropagation();
         state.designEpicPopoverOpen = !state.designEpicPopoverOpen;
+        state.designAssigneePopoverOpen = false;
         render();
         break;
       case 'set-epic-filter':
         state.designEpicFilter = target.dataset.epicId;
         state.designEpicPopoverOpen = false;
+        render();
+        break;
+      case 'toggle-assignee-filter':
+        e.stopPropagation();
+        state.designAssigneePopoverOpen = !state.designAssigneePopoverOpen;
+        state.designEpicPopoverOpen = false;
+        render();
+        break;
+      case 'set-assignee-filter':
+        state.designAssigneeFilter = target.dataset.assigneeFilter;
+        state.designAssigneePopoverOpen = false;
         render();
         break;
       case 'push-all-project':
