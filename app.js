@@ -88,6 +88,10 @@ const CONFIG = {
     'Blocked': 'Blocked'
   },
   jiraInstance: 'https://onjira.domo.com',
+  // URL where this app lives in Domo — appended to every Jira ticket
+  // description the app creates so assignee notification emails link
+  // back here.
+  appUrl: 'https://domo.demo.domo.com/app-studio/517415291/pages/587728222',
   // Hardcoded assignee list — Jira Server uses the `name` field for assignment.
   // Add/remove here and republish to update the dropdown.
   designers: [
@@ -425,6 +429,17 @@ const JiraService = {
     if (!fields.reporter) {
       const reporter = this._currentReporterName();
       if (reporter) fields.reporter = { name: reporter };
+    }
+    // Append a link back to this app to the description so Jira's
+    // assignee/reporter notification emails include a way to return
+    // here. Idempotent — skips if the URL is already present.
+    if (CONFIG.appUrl) {
+      const current = typeof fields.description === 'string' ? fields.description : '';
+      if (!current.includes(CONFIG.appUrl)) {
+        fields.description = current
+          ? current + '\n\nView in Roadmap: ' + CONFIG.appUrl
+          : 'View in Roadmap: ' + CONFIG.appUrl;
+      }
     }
     try {
       return await this._call('POST', '/issue', { fields });
