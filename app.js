@@ -1058,13 +1058,6 @@ function openProjectModal(projectId) {
           </select>
         </div>
       </div>
-      ${!isEdit ? `
-        <div class="form-group">
-          <label class="form-checkbox">
-            <input type="checkbox" id="proj-create-epic">
-            Create Epic in Jira (${CONFIG.jiraProject} project)
-          </label>
-        </div>` : ''}
     </div>
     <div class="modal-footer">
       ${isEdit ? '<div class="modal-footer-left"><button class="btn btn-danger" id="proj-delete">Delete Project</button></div>' : ''}
@@ -1091,30 +1084,6 @@ function openProjectModal(projectId) {
           createdAt: isEdit ? project.createdAt : now,
           updatedAt: now
         };
-
-        // Create Jira Epic if checked
-        const epicCheckbox = modal.querySelector('#proj-create-epic');
-        if (epicCheckbox && epicCheckbox.checked) {
-          try {
-            Toast.info('Creating Epic in Jira...');
-            let result;
-            try {
-              result = await JiraService.createEpic(name, name, doc.squad);
-            } catch (squadErr) {
-              // Retry without squad if it failed
-              if (doc.squad) {
-                result = await JiraService.createEpic(name, name, null);
-                Toast.warning('Epic created but squad was rejected by Jira');
-              } else {
-                throw squadErr;
-              }
-            }
-            doc.epicKey = result.key;
-            Toast.success('Epic created: ' + result.key);
-          } catch (e) {
-            Toast.error('Epic creation failed: ' + e.message);
-          }
-        }
 
         if (isEdit) {
           await DataService.update(CONFIG.collections.projects, doc);
