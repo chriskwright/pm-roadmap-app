@@ -1,4 +1,10 @@
 # CLAUDE.md — AI Development Guide
+## Domo CLI Auto-Login
+- Instance: domo.demo.domo.com
+- If login is needed, run: `domo login` and select `domo.demo.domo.com`
+- Login sessions persist — only re-login when expired
+- Always publish with: `domo publish`
+- Always preview with: `domo dev`
 
 ## Project Overview
 This is a Domo Custom App (Pro-Code) for PM Roadmap Planning 
@@ -60,7 +66,7 @@ pm-roadmap-app/
 
 ### Login
 ```bash
-domo login -i domo-demo.domo.com
+domo login
 ```
 
 ### Local Development

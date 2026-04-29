@@ -614,8 +614,8 @@ function renderHeader() {
   return `
     <header class="app-header">
       <div class="app-logo">
-        <div class="logo-icon">R</div>
-        <span>PM Roadmap</span>
+        <img class="logo-icon" src="logo.png" alt="" />
+        <span>Visualization Roadmap and Projects</span>
       </div>
       <div class="header-stats">
         <div class="stat-item">
@@ -648,7 +648,7 @@ function renderToolbar() {
           value="${Utils.escapeHtml(state.searchQuery)}"
           data-action="search-input">
       </div>
-      <select class="filter-select" data-action="status-filter">
+      <select class="filter-select" onchange="window._setStatusFilter(this.value)">
         <option value="all" ${state.statusFilter === 'all' ? 'selected' : ''}>All Statuses</option>
         <option value="Planned" ${state.statusFilter === 'Planned' ? 'selected' : ''}>Planned</option>
         <option value="In Progress" ${state.statusFilter === 'In Progress' ? 'selected' : ''}>In Progress</option>
@@ -879,7 +879,7 @@ function renderGanttView() {
   const projects = getFilteredProjects();
   const allFeatures = [];
   projects.forEach(p => {
-    const feats = filterFeatures(getProjectFeatures(p.id));
+    const feats = filterFeatures(getProjectFeatures(p.id)).filter(f => f.type === 'Epic');
     feats.forEach(f => allFeatures.push({ ...f, _project: p }));
   });
 
@@ -924,7 +924,7 @@ function renderGanttView() {
   // Build rows: project headers + feature rows
   const rows = [];
   projects.forEach((p, pi) => {
-    const feats = filterFeatures(getProjectFeatures(p.id)).filter(f => f.startDate && f.endDate);
+    const feats = filterFeatures(getProjectFeatures(p.id)).filter(f => f.type === 'Epic' && f.startDate && f.endDate);
     if (feats.length === 0) return;
     rows.push({ type: 'project', project: p, index: pi });
     feats.forEach(f => rows.push({ type: 'feature', feature: f, project: p, index: pi }));
@@ -1003,7 +1003,7 @@ function renderGanttView() {
               ${rows.map((r, ri) => {
                 if (r.type === 'project') {
                   // Project summary bar (min start to max end of its features)
-                  const feats = filterFeatures(getProjectFeatures(r.project.id)).filter(f => f.startDate && f.endDate);
+                  const feats = filterFeatures(getProjectFeatures(r.project.id)).filter(f => f.type === 'Epic' && f.startDate && f.endDate);
                   if (feats.length === 0) return `<div class="gantt-row project-row"></div>`;
                   let ps = new Date(feats[0].startDate), pe = new Date(feats[0].endDate);
                   feats.forEach(f => {
@@ -1950,7 +1950,6 @@ function getFilteredProjects() {
   }
 
   if (state.statusFilter !== 'all') {
-    // Keep projects that have features matching the filter, or the project itself matches
     projects = projects.filter(p => {
       if (p.status === state.statusFilter) return true;
       return getProjectFeatures(p.id).some(f => f.status === state.statusFilter);
@@ -2598,19 +2597,15 @@ function bindEvents() {
       case 'toggle-collapse-all':
         {
           if (state.collapsedProjects.size > 0) {
+            // Expand all projects and epics
             state.collapsedProjects.clear();
+            state.collapsedEpics.clear();
           } else {
+            // Collapse all projects and epics
             state.projects.forEach(p => state.collapsedProjects.add(p.id));
+            state.features.filter(f => f.type === 'Epic').forEach(f => state.collapsedEpics.add(f.id));
           }
-          const isNowCollapsed = state.collapsedProjects.size > 0;
-          document.querySelectorAll('.project-group').forEach(g => {
-            g.classList.toggle('collapsed', isNowCollapsed);
-            const w = g.querySelector('.project-body-wrap');
-            if (w) w.classList.toggle('collapsed', isNowCollapsed);
-          });
-          document.querySelectorAll('[data-action="toggle-collapse-all"]').forEach(btn => {
-            btn.textContent = isNowCollapsed ? 'Expand All' : 'Collapse All';
-          });
+          render();
         }
         break;
       case 'toggle-epic':
@@ -3045,4 +3040,14 @@ async function init() {
 }
 
 // Start app
+// Global filter handlers (inline onchange can't access local scope)
+window._setStatusFilter = function(val) {
+  state.statusFilter = val;
+  if (val !== 'all') {
+    state.collapsedProjects.clear();
+    state.collapsedEpics.clear();
+  }
+  render();
+};
+
 document.addEventListener('DOMContentLoaded', init);
