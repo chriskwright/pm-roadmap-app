@@ -84,6 +84,7 @@ const CONFIG = {
     'QA Planning': 'In Progress',
     'Resolved': 'Done',
     'Closed': 'Done',
+    'Reopened': 'In Progress',
     'On Hold': 'Blocked',
     'Blocked': 'Blocked'
   },
@@ -122,6 +123,8 @@ const state = {
   designAssigneePopoverOpen: false,
   assigneePickerForId: null,
   loading: true,
+  isRefreshingJira: false,
+  refreshingEpicIds: new Set(),
   useLocalStorage: false
 };
 
@@ -660,6 +663,9 @@ function renderToolbar() {
         ${CONFIG.itemTypes.map(t => `<option value="${t}" ${state.typeFilter === t ? 'selected' : ''}>${t}</option>`).join('')}
       </select>
       <div class="toolbar-spacer"></div>
+      <button class="btn btn-secondary btn-sm ${state.isRefreshingJira ? 'is-refreshing' : ''}" data-action="refresh-jira-all" ${state.isRefreshingJira ? 'disabled' : ''} title="Pull latest status & assignee from Jira for all synced tickets">
+        ${state.isRefreshingJira ? '<span class="spinner"></span> Refreshing...' : '&#x1F504; Refresh Jira'}
+      </button>
       <button class="btn btn-secondary btn-sm" data-action="toggle-collapse-all">
         ${state.collapsedProjects.size > 0 ? 'Expand All' : 'Collapse All'}
       </button>
@@ -816,14 +822,15 @@ function renderEpicContainer(epic, allItems, project) {
           ${epic.description ? `<div class="epic-desc">${Utils.escapeHtml(epic.description)}</div>` : ''}
         </div>
         <div class="epic-meta-right">
-          <span class="badge ${Utils.getStatusBadgeClass(epic.status)}">${epic.status}</span>
+          <span class="badge ${Utils.getStatusBadgeClass(epic.status)}"${epic.jiraStatusName && epic.jiraStatusName !== epic.status ? ` title="Jira: ${Utils.escapeHtml(epic.jiraStatusName)}"` : ''}>${epic.status}</span>
           ${epic.squad ? `<span class="epic-meta">${Utils.escapeHtml(epic.squad)}</span>` : ''}
-          ${epic.jiraKey ? `<a class="jira-item-link" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(epic.jiraKey)}">${Utils.escapeHtml(epic.jiraKey)}</a>` : ''}
+          ${epic.jiraKey ? `<a class="jira-item-link" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(epic.jiraKey)}">${Utils.escapeHtml(epic.jiraKey)}</a>${epic.jiraStatusName && epic.jiraStatusName !== epic.status ? `<span class="jira-status-sub" title="Status in Jira">${Utils.escapeHtml(epic.jiraStatusName)}</span>` : ''}` : ''}
           ${epic.mockLink ? `<a class="tag-pill" href="${Utils.escapeHtml(epic.mockLink)}" title="${Utils.escapeHtml(epic.mockLink)}">Mock</a>` : ''}
         </div>
         <div class="epic-header-actions">
           <button class="btn-icon" data-action="move-item-up" data-feature-id="${epic.id}" title="Move up">&#8593;</button>
           <button class="btn-icon" data-action="move-item-down" data-feature-id="${epic.id}" title="Move down">&#8595;</button>
+          <button class="btn-icon ${state.refreshingEpicIds.has(epic.id) ? 'is-refreshing' : ''}" data-action="refresh-epic" data-feature-id="${epic.id}" ${state.refreshingEpicIds.has(epic.id) ? 'disabled' : ''} title="Refresh this epic and its items from Jira">${state.refreshingEpicIds.has(epic.id) ? '<span class="spinner"></span>' : '&#x1F504;'}</button>
           <button class="btn-icon" data-action="edit-feature" data-feature-id="${epic.id}" title="Edit">&#9998;</button>
           <button class="btn-icon" data-action="delete-item" data-feature-id="${epic.id}" title="Delete">&#128465;</button>
         </div>
@@ -857,14 +864,14 @@ function renderItemRow(feature, isStandalone) {
     <div class="item-row ${isStandalone ? 'item-row-standalone' : ''}" data-action="edit-feature" data-feature-id="${feature.id}">
       <div class="item-row-type" data-type="${itemType}">${itemType}</div>
       <div class="item-row-name">${Utils.escapeHtml(feature.name)}${feature.source === 'linked' ? ' <span class="link-badge">&#128279;</span>' : ''}</div>
-      <div class="item-row-status"><span class="badge ${Utils.getStatusBadgeClass(feature.status)}">${feature.status || ''}</span></div>
+      <div class="item-row-status"><span class="badge ${Utils.getStatusBadgeClass(feature.status)}"${feature.jiraStatusName && feature.jiraStatusName !== feature.status ? ` title="Jira: ${Utils.escapeHtml(feature.jiraStatusName)}"` : ''}>${feature.status || ''}</span></div>
       <div class="item-row-squad">${feature.squad ? Utils.escapeHtml(feature.squad) : '--'}</div>
       <div class="item-row-dates">${feature.startDate ? Utils.formatDate(feature.startDate) + '  ' + Utils.formatDate(feature.endDate) : '-- --'}</div>
       <div class="item-row-tag">
         ${feature.mockLink ? `<a class="tag-pill" href="${Utils.escapeHtml(feature.mockLink)}" title="${Utils.escapeHtml(feature.mockLink)}">Mock</a>` : ''}
       </div>
       <div class="item-row-jira">
-        ${feature.jiraKey ? `<a class="jira-item-link" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(feature.jiraKey)}">${Utils.escapeHtml(feature.jiraKey)}</a>` : ''}
+        ${feature.jiraKey ? `<a class="jira-item-link" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(feature.jiraKey)}">${Utils.escapeHtml(feature.jiraKey)}</a>${feature.jiraStatusName && feature.jiraStatusName !== feature.status ? `<span class="jira-status-sub" title="Status in Jira">${Utils.escapeHtml(feature.jiraStatusName)}</span>` : ''}` : ''}
       </div>
       <div class="item-row-actions">
         <button class="btn-icon" data-action="move-item-up" data-feature-id="${feature.id}" title="Move up">&#9650;</button>
@@ -1268,6 +1275,7 @@ function openLinkJiraModal(projectId, opts) {
             name: fields.summary || selectedIssue.key,
             description: (typeof fields.description === 'string') ? fields.description : '',
             status: appStatus,
+            jiraStatusName: statusName || '',
             type: isEpic ? 'Epic' : appType,
             squad: project ? (project.squad || '') : '',
             startDate: null,
@@ -1854,6 +1862,43 @@ async function refreshProjectFromJira(projectId) {
   const now = new Date().toISOString();
 
   for (const feat of feats) {
+    // Path A: Feature has its own jiraKey (link-existing or create-with-Jira flow — the dominant pattern)
+    if (feat.jiraKey) {
+      total++;
+      try {
+        const issue = await JiraService.getIssue(feat.jiraKey);
+        const jiraStatusName = issue.fields && issue.fields.status ? issue.fields.status.name : '';
+        const appStatus = CONFIG.jiraStatusToApp[jiraStatusName] || null;
+        const assignee = (issue.fields && issue.fields.assignee && issue.fields.assignee.displayName) || '';
+        let changed = false;
+
+        if (appStatus && appStatus !== feat.status) {
+          feat.status = appStatus;
+          changed = true;
+        }
+        if (feat.assignee !== assignee) {
+          feat.assignee = assignee;
+          changed = true;
+        }
+        if (jiraStatusName && feat.jiraStatusName !== jiraStatusName) {
+          feat.jiraStatusName = jiraStatusName;
+          changed = true;
+        }
+        if (changed) {
+          feat.lastModifiedAt = now;
+          await DataService.update(CONFIG.collections.features, feat);
+          const fIdx = state.features.findIndex(f => f.id === feat.id);
+          if (fIdx >= 0) state.features[fIdx] = { ...feat };
+          updated++;
+        } else {
+          unchanged++;
+        }
+      } catch (e) {
+        errors++;
+      }
+    }
+
+    // Path B: Feature has child JiraTicket records (draft → push flow)
     const tickets = getFeatureTickets(feat.id).filter(t => t.status === 'synced' && t.jiraKey);
     for (const ticket of tickets) {
       total++;
@@ -1874,8 +1919,16 @@ async function refreshProjectFromJira(projectId) {
         if (tIdx >= 0) state.jiraTickets[tIdx] = { ...ticket };
 
         // Update feature status if Jira status maps to a different app status
+        let featChanged = false;
         if (appStatus && appStatus !== feat.status) {
           feat.status = appStatus;
+          featChanged = true;
+        }
+        if (jiraStatusName && feat.jiraStatusName !== jiraStatusName) {
+          feat.jiraStatusName = jiraStatusName;
+          featChanged = true;
+        }
+        if (featChanged) {
           feat.lastModifiedAt = now;
           await DataService.update(CONFIG.collections.features, feat);
           const fIdx = state.features.findIndex(f => f.id === feat.id);
@@ -1894,22 +1947,118 @@ async function refreshProjectFromJira(projectId) {
 }
 
 async function refreshAllFromJira() {
-  Toast.info('Refreshing from Jira...');
-  let totalAll = 0, updatedAll = 0, unchangedAll = 0;
-
-  for (const project of state.projects) {
-    const result = await refreshProjectFromJira(project.id);
-    totalAll += result.total;
-    updatedAll += result.updated;
-    unchangedAll += result.unchanged;
-  }
-
-  if (totalAll === 0) {
-    Toast.info('No synced tickets to refresh');
-  } else {
-    Toast.success(`Synced ${totalAll} tickets: ${updatedAll} updated, ${unchangedAll} unchanged`);
-  }
+  if (state.isRefreshingJira) return;
+  state.isRefreshingJira = true;
   render();
+
+  let totalAll = 0, updatedAll = 0, unchangedAll = 0, errorsAll = 0;
+
+  try {
+    for (const project of state.projects) {
+      const result = await refreshProjectFromJira(project.id);
+      totalAll += result.total;
+      updatedAll += result.updated;
+      unchangedAll += result.unchanged;
+      errorsAll += result.errors;
+    }
+
+    if (totalAll === 0) {
+      Toast.info('No Jira-linked items to refresh');
+    } else if (errorsAll > 0 && updatedAll === 0 && unchangedAll === 0) {
+      Toast.error(`Refresh failed for all ${errorsAll} items — check Jira connection`);
+    } else if (errorsAll > 0) {
+      Toast.warning(`Synced ${totalAll}: ${updatedAll} updated, ${unchangedAll} unchanged, ${errorsAll} failed`);
+    } else {
+      Toast.success(`Synced ${totalAll} items: ${updatedAll} updated, ${unchangedAll} unchanged`);
+    }
+  } finally {
+    state.isRefreshingJira = false;
+    render();
+  }
+}
+
+// Refresh a single Epic and its child items (those with parentEpicId === epicId).
+// Reuses the same per-feature refresh logic as refreshProjectFromJira.
+async function refreshEpicFromJira(epicId) {
+  const epic = state.features.find(f => f.id === epicId);
+  if (!epic) return;
+  if (state.refreshingEpicIds.has(epicId)) return;
+  state.refreshingEpicIds.add(epicId);
+  render();
+
+  const epicAndChildren = [epic, ...state.features.filter(f => f.parentEpicId === epicId)];
+  let total = 0, updated = 0, unchanged = 0, errors = 0;
+  const now = new Date().toISOString();
+
+  try {
+    for (const feat of epicAndChildren) {
+      if (!feat.jiraKey) {
+        // No Path A jiraKey — try Path B (child JiraTickets) for this feature
+        const tickets = getFeatureTickets(feat.id).filter(t => t.status === 'synced' && t.jiraKey);
+        for (const ticket of tickets) {
+          total++;
+          try {
+            const issue = await JiraService.getIssue(ticket.jiraKey);
+            const jiraStatusName = issue.fields && issue.fields.status ? issue.fields.status.name : '';
+            const appStatus = CONFIG.jiraStatusToApp[jiraStatusName] || null;
+            const assignee = (issue.fields && issue.fields.assignee && issue.fields.assignee.displayName) || '';
+            let changed = false;
+            if (ticket.assignee !== assignee) { ticket.assignee = assignee; changed = true; }
+            ticket.lastSyncedAt = now;
+            await DataService.update(CONFIG.collections.jiraTickets, ticket);
+            const tIdx = state.jiraTickets.findIndex(t => t.id === ticket.id);
+            if (tIdx >= 0) state.jiraTickets[tIdx] = { ...ticket };
+            let featChanged = false;
+            if (appStatus && appStatus !== feat.status) { feat.status = appStatus; featChanged = true; }
+            if (jiraStatusName && feat.jiraStatusName !== jiraStatusName) { feat.jiraStatusName = jiraStatusName; featChanged = true; }
+            if (featChanged) {
+              feat.lastModifiedAt = now;
+              await DataService.update(CONFIG.collections.features, feat);
+              const fIdx = state.features.findIndex(f => f.id === feat.id);
+              if (fIdx >= 0) state.features[fIdx] = { ...feat };
+              changed = true;
+            }
+            if (changed) updated++; else unchanged++;
+          } catch { errors++; }
+        }
+        continue;
+      }
+      // Path A: feature has its own jiraKey
+      total++;
+      try {
+        const issue = await JiraService.getIssue(feat.jiraKey);
+        const jiraStatusName = issue.fields && issue.fields.status ? issue.fields.status.name : '';
+        const appStatus = CONFIG.jiraStatusToApp[jiraStatusName] || null;
+        const assignee = (issue.fields && issue.fields.assignee && issue.fields.assignee.displayName) || '';
+        let changed = false;
+        if (appStatus && appStatus !== feat.status) { feat.status = appStatus; changed = true; }
+        if (feat.assignee !== assignee) { feat.assignee = assignee; changed = true; }
+        if (jiraStatusName && feat.jiraStatusName !== jiraStatusName) { feat.jiraStatusName = jiraStatusName; changed = true; }
+        if (changed) {
+          feat.lastModifiedAt = now;
+          await DataService.update(CONFIG.collections.features, feat);
+          const fIdx = state.features.findIndex(f => f.id === feat.id);
+          if (fIdx >= 0) state.features[fIdx] = { ...feat };
+          updated++;
+        } else {
+          unchanged++;
+        }
+      } catch { errors++; }
+    }
+
+    if (total === 0) {
+      Toast.info('No Jira-linked items in this epic');
+    } else if (errors > 0 && updated === 0 && unchanged === 0) {
+      Toast.error(`Refresh failed for all ${errors} items — check Jira connection`);
+    } else if (errors > 0) {
+      Toast.warning(`Synced ${total}: ${updated} updated, ${unchanged} unchanged, ${errors} failed`);
+    } else {
+      Toast.success(`Synced ${total} items: ${updated} updated, ${unchanged} unchanged`);
+    }
+  } finally {
+    state.refreshingEpicIds.delete(epicId);
+    render();
+  }
 }
 
 // Jira delete removed — roadmap deletes never touch Jira
@@ -2183,7 +2332,7 @@ function renderMockCard(feature) {
           <button class="card-reorder-btn" data-action="move-mockup-up" data-feature-id="${feature.id}" title="Move up">&#9650;</button>
           <button class="card-reorder-btn" data-action="move-mockup-down" data-feature-id="${feature.id}" title="Move down">&#9660;</button>
         </div>
-        ${feature.jiraKey ? `<a class="card-key" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(feature.jiraKey)}" title="Open ${Utils.escapeHtml(feature.jiraKey)} in Jira">${Utils.escapeHtml(feature.jiraKey)}</a>` : ''}
+        ${feature.jiraKey ? `<a class="card-key" href="${CONFIG.jiraInstance}/browse/${Utils.escapeHtml(feature.jiraKey)}" title="${feature.jiraStatusName ? 'Jira status: ' + Utils.escapeHtml(feature.jiraStatusName) + ' — ' : ''}Open ${Utils.escapeHtml(feature.jiraKey)} in Jira">${Utils.escapeHtml(feature.jiraKey)}</a>${feature.jiraStatusName && feature.jiraStatusName !== feature.status ? `<span class="jira-status-sub" title="Status in Jira">${Utils.escapeHtml(feature.jiraStatusName)}</span>` : ''}` : ''}
       </div>
       <div class="card-title">${Utils.escapeHtml(feature.name || '')}</div>
       ${parentEpic ? `<div class="epic-context">${Utils.escapeHtml(parentEpic.name)}</div>` : ''}
@@ -2592,6 +2741,17 @@ function bindEvents() {
             const caret = grp.querySelector('.project-collapse-icon');
             if (caret) caret.innerHTML = nowCollapsed ? '&#9656;' : '&#9662;';
           }
+        }
+        break;
+      case 'refresh-jira-all':
+        {
+          refreshAllFromJira();
+        }
+        break;
+      case 'refresh-epic':
+        {
+          const epicId = target.dataset.featureId;
+          if (epicId) refreshEpicFromJira(epicId);
         }
         break;
       case 'toggle-collapse-all':

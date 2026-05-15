@@ -885,6 +885,12 @@ html, body {
   color: #5a5a5a;
   line-height: 1.45;
   margin-top: 3px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .epic-meta-right {
@@ -1116,6 +1122,17 @@ html, body {
   border: 1px solid #E9D5FF;
 }
 .jira-item-link:hover { text-decoration: underline; }
+
+/* Jira status sub-label — shown next to the Jira key when the actual Jira status differs from the mapped app status */
+.jira-status-sub {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--text-tertiary, #94A3B8);
+  font-style: italic;
+  vertical-align: middle;
+  cursor: help;
+}
 
 /* Jira link in modal */
 .jira-item-link-large {
@@ -1994,6 +2011,27 @@ a.jira-ticket-key:hover {
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
+}
+
+/* Inline spinner — sized to sit inside a button next to text */
+.btn .spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+
+/* Refresh button loading state */
+.btn.is-refreshing {
+  opacity: 0.7;
+  cursor: progress;
+}
+.btn.is-refreshing:hover {
+  background: #FFFFFF;
+  color: var(--text-secondary);
+  border-color: var(--border-secondary);
 }
 
 /* ===== ANIMATIONS ===== */
