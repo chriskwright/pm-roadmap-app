@@ -4,7 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Visualization Roadmap and Projects</title>
-  <link rel="stylesheet" href="app.css">
+  <script>
+    // Domo's iframe rewriter signs <script src> and <img src> with ryuu_sid
+    // but skips <link href>, so a bare app.css 404s on auth (DA0107).
+    // Inject the stylesheet with the SID Domo exposes via window.__RYUU_SID__.
+    (function () {
+      var link = document.createElement('link');
+      link.rel = 'stylesheet';
+      var sid = window.__RYUU_SID__;
+      link.href = sid ? 'app.css?ryuu_sid=' + encodeURIComponent(sid) : 'app.css';
+      document.head.appendChild(link);
+    })();
+  </script>
 </head>
 <body>
   <div id="app"></div>
