@@ -3,6 +3,9 @@
 .env.local
 .env.*.local
 
+# Per-machine tool config
+.codex/
+
 # Dependencies
 node_modules/
 
