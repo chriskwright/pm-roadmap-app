@@ -2614,8 +2614,21 @@ function bindDetailsPositioning() {
       const menu = d.querySelector('.add-menu');
       if (!summary || !menu) return;
       const r = summary.getBoundingClientRect();
-      menu.style.top = (r.bottom + 4) + 'px';
-      menu.style.left = (r.left + r.width / 2) + 'px';
+      const margin = 8;
+      // .add-menu is centered via translateX(-50%), so half its width
+      // extends to either side of `left`. Clamp `left` so neither edge
+      // overflows the viewport (the Domo iframe clips anything past it).
+      const halfWidth = menu.offsetWidth / 2;
+      const minLeft = halfWidth + margin;
+      const maxLeft = window.innerWidth - halfWidth - margin;
+      const desiredLeft = r.left + r.width / 2;
+      menu.style.left = Math.max(minLeft, Math.min(maxLeft, desiredLeft)) + 'px';
+      // If the menu would overflow the bottom, flip above the summary.
+      const desiredTop = r.bottom + 4;
+      const overflowBottom = desiredTop + menu.offsetHeight > window.innerHeight - margin;
+      menu.style.top = overflowBottom
+        ? Math.max(margin, r.top - menu.offsetHeight - 4) + 'px'
+        : desiredTop + 'px';
     });
   });
 }
