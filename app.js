@@ -2615,20 +2615,27 @@ function bindDetailsPositioning() {
       if (!summary || !menu) return;
       const r = summary.getBoundingClientRect();
       const margin = 8;
-      // .add-menu is centered via translateX(-50%), so half its width
-      // extends to either side of `left`. Clamp `left` so neither edge
+      // .add-menu is centered via translateX(-50%) and CSS sets its width
+      // to 260px (app.css ~line 1222). offsetWidth is 0 at toggle time
+      // because the browser hasn't laid out the just-shown menu yet, so
+      // hardcode the half-width here. Clamp `left` so neither edge
       // overflows the viewport (the Domo iframe clips anything past it).
-      const halfWidth = menu.offsetWidth / 2;
+      const MENU_WIDTH = 260;
+      const halfWidth = MENU_WIDTH / 2;
       const minLeft = halfWidth + margin;
       const maxLeft = window.innerWidth - halfWidth - margin;
       const desiredLeft = r.left + r.width / 2;
       menu.style.left = Math.max(minLeft, Math.min(maxLeft, desiredLeft)) + 'px';
-      // If the menu would overflow the bottom, flip above the summary.
-      const desiredTop = r.bottom + 4;
-      const overflowBottom = desiredTop + menu.offsetHeight > window.innerHeight - margin;
-      menu.style.top = overflowBottom
-        ? Math.max(margin, r.top - menu.offsetHeight - 4) + 'px'
-        : desiredTop + 'px';
+      menu.style.top = (r.bottom + 4) + 'px';
+      // Refine vertical position once layout is computed — if the menu
+      // would overflow the bottom, flip it above the summary.
+      requestAnimationFrame(() => {
+        if (!d.open) return;
+        const h = menu.offsetHeight;
+        if (r.bottom + 4 + h > window.innerHeight - margin) {
+          menu.style.top = Math.max(margin, r.top - h - 4) + 'px';
+        }
+      });
     });
   });
 }

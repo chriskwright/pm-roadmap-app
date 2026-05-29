@@ -1305,12 +1305,11 @@ details.dropdown .split-summary:hover {
   margin: 4px 0;
 }
 
-/* Lane header menus align right */
-.lane-actions .add-menu {
-  left: auto;
-  right: 0;
-  transform: none;
-}
+/* Lane header menus use the same centered+clamped positioning as every
+   other .add-menu — JS in bindDetailsPositioning() centers the menu on
+   the summary and clamps to viewport bounds, so no special override is
+   needed. (The old `left: auto; right: 0; transform: none;` rule fought
+   the JS positioning and caused the menu to overflow the iframe.) */
 
 /* ===== LINK MODAL ===== */
 .link-results {
