@@ -14,7 +14,7 @@ Domo Custom App (Pro-Code) for PM Roadmap Planning with Jira integration. Full r
 - Domo Custom App (Pro-Code CLI)
 - **Vanilla JavaScript** — single file, no build step, no framework. The earlier "React/JSX" framing in this doc was aspirational; the actual implementation is plain JS with `innerHTML` rendering and `addEventListener` bindings. Do NOT introduce React/JSX/Vite/etc. without an explicit migration discussion.
 - Domo SDK ([ryuu.js](https://unpkg.com/ryuu.js)) — provides `domo.get/post/put/delete` for AppDB + proxies
-- Domo Code Engine — runs a server-side Jira proxy (avoids CORS, holds the PAT)
+- Domo Code Engine — runs a server-side Jira proxy (avoids CORS, holds the Cloud API token / HTTP Basic creds)
 - Domo AppDB — three collections (Projects, Features, JiraTickets)
 
 ## File Structure (actual, flat)
@@ -91,10 +91,11 @@ The Feature modal is the heaviest consumer — most type/status/squad/transition
 ## Jira Integration
 
 ### Wiring
-- Browser → `domo.post('/api/codeengine/v2/packages/<pkgId>/.../jiraProxy', {...})` → Code Engine function → `https://onjira.domo.com/rest/api/2/...`
+- Browser → `domo.post('/api/codeengine/v2/packages/<pkgId>/.../jiraProxy', {...})` → Code Engine function → `https://domoinc.atlassian.net/rest/api/2/...`
+- **Atlassian Cloud since Mar 2026** (was on-prem `onjira.domo.com`). Auth is **HTTP Basic** (`base64(email:apiToken)`), NOT a Bearer PAT. Still REST **v2** so `description` stays a plain string (v3 needs ADF).
 - Code Engine function source: [codeengine/jiraProxy.js](codeengine/jiraProxy.js)
-- PAT lives in Code Engine env var `JIRA_PAT` — NEVER hardcode or commit it
-- `manifest.json` also declares a proxy (`proxyId: "jira"`) as a fallback path, but the active path is Code Engine
+- Credentials live in Code Engine env vars `JIRA_EMAIL` + `JIRA_API_TOKEN` (service/bot account) — NEVER hardcode or commit them
+- Code Engine is the ONLY path to Jira. The legacy Domo proxy connector (`proxyId: "jira"` / `proxy` block in `manifest.json`, and the `CONFIG.jiraProxy` / `CONFIG.jiraBaseUrl` entries) was removed in the Cloud migration — do NOT re-add it.
 
 ### CONFIG.jiraProject = `'DOMO'`
 All tickets are created in the DOMO Jira project.
@@ -102,9 +103,9 @@ All tickets are created in the DOMO Jira project.
 ### Custom field IDs (these will bite you if you guess)
 | Field | ID | Notes |
 |---|---|---|
-| Epic Name | `customfield_11001` | Required when creating an Epic |
-| Epic Link | `customfield_11000` | Set on non-Epic issues to link to their parent Epic |
-| Squad | `customfield_11200` | `{ value: 'Visualizations' \| 'Content Distribution' \| 'Cross Platform' }`. May reject — code retries without it. |
+| Epic Name | `customfield_10011` | Required when creating an Epic (was `customfield_11001` on-prem) |
+| Epic Link | `customfield_10014` | Set on non-Epic issues to link to their parent Epic (was `customfield_11000`). `parent` is NOT on the DOMO create screen — use Epic Link. |
+| Squad | `customfield_10071` | `{ value: 'Visualizations' \| 'Content Distribution' \| 'Cross-Platform' }` (was `customfield_11200`). **REQUIRED on create** in Cloud — `JiraService._squadField()` normalizes + defaults to `Visualizations`; do NOT retry-without-squad (it will always fail). |
 
 ### Issue types
 `Epic`, `Story`, `Improvement`, `Bug`, `MockUp` (note: `MockUp`, not `Mockup` — Jira's name is case-sensitive). `Mock` also appears as a display alias in some maps.
@@ -125,10 +126,10 @@ Jira has many granular statuses; the app collapses them to `Planned / In Progres
 If you add a new Jira status to the team's workflow, also add it here — unmapped statuses cause the refresh-from-Jira flow to silently leave the app status unchanged (see `refreshProjectFromJira` line ~1877: `if (appStatus && ...)`).
 
 ### Reporter
-Derived from `domo.env.userEmail` → email prefix (e.g. `chris.wright@domo.com` → `chris.wright`). If Jira rejects the reporter, `createIssue` retries without it.
+Not set by the app on Cloud. The service/bot account that owns the API token becomes the reporter/creator of every issue (Cloud assigns reporter by `accountId` + requires Modify Reporter permission, so per-user attribution was dropped in the migration). The old email-prefix-username logic was removed.
 
 ### Assignee
-Hardcoded list in `CONFIG.designers`. Add/remove there and republish. Jira Server uses the `name` field (e.g. `lauren.jensen`), not display name.
+Hardcoded list in `CONFIG.designers`. Each entry has `name` (app-internal key, kept stable so existing AppDB `feature.assignee` values still match), `displayName`, and `accountId`. **Cloud assigns by `accountId`**, not username — `JiraService.assigneeField(name)` translates the key to `{ accountId }` at the Jira boundary. Add/remove there, look up the new accountId (Jira user search by email), and republish.
 
 ### App URL appended to MockUp descriptions
 `CONFIG.appUrl` is appended ONLY to MockUp issue descriptions, so designers clicking through Jira email notifications land in the roadmap. Don't append it to other types — keeps descriptions clean.
@@ -171,9 +172,11 @@ The toast reports counts as `Synced N items: X updated, Y unchanged, [Z failed]`
 
 ## Sharp Edges — Don't Do These
 - **Don't create tickets directly in Jira without mirroring them as synced AppDB JiraTickets records.** Orphan tickets in Jira aren't visible in the roadmap and break the source-of-truth invariant.
-- **Don't use Jira's Epic Link to nest child Epics under a parent project Epic.** This Jira instance's epic-of-epic isn't supported via `customfield_11000`. Child Epics are free-standing in Jira; grouping is tracked in the PM Roadmap AppDB via `JiraTickets.featureId` / project membership.
+- **Don't use Jira's Epic Link to nest child Epics under a parent project Epic.** This Jira instance's epic-of-epic isn't supported via `customfield_10014`. Child Epics are free-standing in Jira; grouping is tracked in the PM Roadmap AppDB via `JiraTickets.featureId` / project membership.
+- **Don't hardcode the Jira credentials.** `JIRA_EMAIL` + `JIRA_API_TOKEN` live in the Code Engine function's env vars (HTTP Basic). `.env` and `manifest.json` carry placeholders only.
+- **Don't send `description` as ADF.** We stay on REST v2 where `description` is a plain string. If anything ever moves to v3, descriptions must become ADF JSON.
 - **Don't introduce React / JSX / a build step.** The app is intentionally a single vanilla-JS file served as-is by Domo. Adding a bundler changes the publish flow.
-- **Don't hardcode the JIRA PAT, ever.** It lives in the Code Engine function's env var.
+- **Don't hardcode the Jira API token, ever.** `JIRA_EMAIL` + `JIRA_API_TOKEN` live in the Code Engine function's env vars.
 - **Don't strip `_docId` accidentally before an update.** It's the AppDB doc ID needed for PUT/DELETE.
 - **Don't assume `createIssue` will accept `squad` for every issue type.** The code already does a retry-without-squad on failure; preserve that pattern.
 - **Don't add `appUrl` to non-MockUp ticket descriptions.** Only MockUp gets it.

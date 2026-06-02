@@ -11,16 +11,18 @@ const CONFIG = {
     jiraTickets: 'JiraTickets'
   },
   jiraProject: 'DOMO',
-  jiraProxy: '/domo/proxy/jira',
-  jiraBaseUrl: '/rest/api/2',
+  // Atlassian Cloud custom field IDs (changed from on-prem during the
+  // Mar 2026 migration: was 11001 / 11000 / 11200 on onjira.domo.com).
   customFields: {
-    epicName: 'customfield_11001',
-    epicLink: 'customfield_11000',
-    squad: 'customfield_11200'
+    epicName: 'customfield_10011',
+    epicLink: 'customfield_10014',
+    squad: 'customfield_10071'
   },
   issueTypes: ['Epic', 'Story', 'Improvement', 'Bug', 'Mock'],
   statuses: ['Planned', 'In Progress', 'Done', 'Blocked'],
-  squads: ['Visualizations', 'Content Distribution', 'Cross Platform'],
+  // Must match the Squad field's allowed values exactly on Cloud.
+  // Note: Cloud uses the hyphenated "Cross-Platform" (was "Cross Platform").
+  squads: ['Visualizations', 'Content Distribution', 'Cross-Platform'],
   itemTypes: ['Story', 'Bug', 'Improvement', 'MockUp', 'Epic'],
   // Map app item types to Jira issue types
   typeToJira: { Story: 'Story', Bug: 'Bug', Improvement: 'Improvement', MockUp: 'MockUp', Epic: 'Epic' },
@@ -75,34 +77,50 @@ const CONFIG = {
   jiraStatusToApp: {
     'Open': 'Planned',
     'To Do': 'Planned',
+    'To Do / Concept': 'Planned',
     'Concept': 'Planned',
+    'Backlog': 'Planned',
+    'Initial Scoping': 'Planned',
+    'Triaged': 'Planned',
+    'Approval Request': 'Planned',
+    'VP Approval': 'Planned',
     'In Progress': 'In Progress',
     'UX/Design': 'In Progress',
     'Ready for Dev': 'In Progress',
+    'Dev Planning': 'In Progress',
     'Prep': 'In Progress',
     'Pull Request': 'In Progress',
     'QA Planning': 'In Progress',
+    'Alpha': 'In Progress',
+    'Beta': 'In Progress',
     'Resolved': 'Done',
     'Closed': 'Done',
+    'Approved': 'Done',
     'Reopened': 'In Progress',
+    'Reopened (migrated)': 'In Progress',
     'On Hold': 'Blocked',
     'Blocked': 'Blocked'
   },
-  jiraInstance: 'https://onjira.domo.com',
+  jiraInstance: 'https://domoinc.atlassian.net',
   // URL where this app lives in Domo — appended to every Jira ticket
   // description the app creates so assignee notification emails link
   // back here.
   appUrl: 'https://domo.demo.domo.com/app-studio/517415291/pages/587728222',
-  // Hardcoded assignee list — Jira Server uses the `name` field for assignment.
-  // Add/remove here and republish to update the dropdown.
+  // Hardcoded assignee list. `name` is the app-internal key (kept stable so
+  // existing AppDB feature.assignee values still match the dropdown).
+  // Atlassian Cloud assigns by `accountId`, not username — the accountId is
+  // sent to Jira via JiraService.assigneeField(). Add/remove here, look up
+  // the accountId (Jira user search by email), and republish.
+  // NOTE: 'khushboo' resolved to 3 Cloud accounts; this is the one with a
+  // domo.com email — verify it's the right Khushboo before relying on it.
   designers: [
-    { name: 'ellen.lingwall', displayName: 'Ellen Lingwall' },
-    { name: 'lauren.jensen',  displayName: 'Lauren Jensen' },
-    { name: 'brandon.king',   displayName: 'Brandon King' },
-    { name: 'Devin.LuBean',   displayName: 'Devin LuBean' },
-    { name: 'khushboo',       displayName: 'Khushboo' },
-    { name: 'phillip.fuchs',  displayName: 'Phillip Fuchs' },
-    { name: 'chris.wright',   displayName: 'Chris Wright' }
+    { name: 'ellen.lingwall', displayName: 'Ellen Lingwall', accountId: '557058:3ed995ff-1e4f-4aa7-bfdb-60a62cdbe453' },
+    { name: 'lauren.jensen',  displayName: 'Lauren Jensen',  accountId: '712020:f22a4acd-4368-498e-8b44-307bfb7a5d2e' },
+    { name: 'brandon.king',   displayName: 'Brandon King',   accountId: '557058:9e2ad5b0-b463-4e8c-81bd-2c86b7702401' },
+    { name: 'Devin.LuBean',   displayName: 'Devin LuBean',   accountId: '557058:fa03f4e4-10bb-402f-9d50-5333f4074e50' },
+    { name: 'khushboo',       displayName: 'Khushboo',       accountId: '712020:7970d805-d359-4364-b3fa-9e8c99e82d12' },
+    { name: 'phillip.fuchs',  displayName: 'Phillip Fuchs',  accountId: '712020:5c36c979-1df8-46d6-a236-b6c9737c02cb' },
+    { name: 'chris.wright',   displayName: 'Chris Wright',   accountId: '557058:bf676335-aede-42f6-b949-eff1112cd5d7' }
   ]
 };
 
@@ -387,7 +405,7 @@ const JiraService = {
 
   async _call(method, path, body) {
     const input = JSON.stringify({ method, path, body });
-    const url = `/api/codeengine/v2/packages/${this.packageId}/versions/1.0.0/functions/${this.functionName}`;
+    const url = `/api/codeengine/v2/packages/${this.packageId}/versions/1.0.3/functions/${this.functionName}`;
     try {
       const resp = await domo.post(url, { inputVariables: { input: input } });
       // Code Engine wraps the result in an execution envelope
@@ -411,32 +429,36 @@ const JiraService = {
     return { user: me, path: 'Code Engine' };
   },
 
-  // Derive the Jira reporter username from the current Domo user.
-  // Domo exposes the signed-in user's email via domo.env.userEmail;
-  // our Jira usernames are the email prefix (e.g. chris.wright@domo.com
-  // → chris.wright). Returns null if unavailable so callers can skip
-  // the field and fall back to the token owner.
-  _currentReporterName() {
-    try {
-      const env = (typeof domo !== 'undefined' && domo && domo.env) ? domo.env : (typeof window !== 'undefined' && window.domo && window.domo.env) || null;
-      const email = env && env.userEmail;
-      if (email && typeof email === 'string' && email.includes('@')) {
-        return email.split('@')[0];
-      }
-    } catch {}
-    return null;
+  // Translate an app-internal assignee key (CONFIG.designers[].name) into the
+  // Jira assignee field. Cloud assigns by accountId, not username. Returns
+  // null to clear the assignee. Unknown keys also return null (safer than
+  // sending an invalid value that fails the whole update).
+  assigneeField(name) {
+    if (!name) return null;
+    const d = CONFIG.designers.find(x => x.name === name);
+    return d && d.accountId ? { accountId: d.accountId } : null;
+  },
+
+  // Squad (customfield_10071) is REQUIRED on create in Cloud. Normalize the
+  // app's stored value to a current allowed value and default to the primary
+  // team when missing/unknown, so a create never fails on a bad/absent squad.
+  _squadField(squad) {
+    const aliases = { 'Cross Platform': 'Cross-Platform' };
+    let value = (squad && aliases[squad]) || squad || '';
+    if (!CONFIG.squads.includes(value)) value = 'Visualizations';
+    return { value };
   },
 
   async createIssue(fields) {
-    // Inject reporter if not already set and we can identify the Domo user.
-    if (!fields.reporter) {
-      const reporter = this._currentReporterName();
-      if (reporter) fields.reporter = { name: reporter };
+    // Squad is required on Cloud — guarantee a valid value on every create.
+    if (!fields[CONFIG.customFields.squad]) {
+      fields[CONFIG.customFields.squad] = this._squadField();
     }
     // Append a link back to this app to MockUp descriptions only, so
     // designer assignees clicking through Jira's notification email
     // land in the roadmap. Other issue types (Story/Bug/etc.) don't
     // get the link to keep their descriptions clean.
+    // (REST v2 keeps description as a plain string — no ADF needed.)
     const issueTypeName = fields.issuetype && fields.issuetype.name;
     if (CONFIG.appUrl && issueTypeName === 'MockUp') {
       const current = typeof fields.description === 'string' ? fields.description : '';
@@ -446,18 +468,10 @@ const JiraService = {
           : 'View in Roadmap: ' + CONFIG.appUrl;
       }
     }
-    try {
-      return await this._call('POST', '/issue', { fields });
-    } catch (e) {
-      // If Jira rejects the reporter (unknown user / permission), retry
-      // without it so the creation still succeeds.
-      if (fields.reporter && String(e && e.message || '').toLowerCase().includes('reporter')) {
-        const retryFields = { ...fields };
-        delete retryFields.reporter;
-        return this._call('POST', '/issue', { fields: retryFields });
-      }
-      throw e;
-    }
+    // Reporter is intentionally not set: a service/bot account owns creation
+    // on Cloud, and setting reporter requires accountId + Modify Reporter
+    // permission. The bot becomes the reporter/creator.
+    return this._call('POST', '/issue', { fields });
   },
 
   async createEpic(name, summary, squad) {
@@ -465,19 +479,23 @@ const JiraService = {
       project: { key: CONFIG.jiraProject },
       summary: summary,
       issuetype: { name: 'Epic' },
-      [CONFIG.customFields.epicName]: name
+      [CONFIG.customFields.epicName]: name,
+      [CONFIG.customFields.squad]: this._squadField(squad)
     };
-    if (squad) fields[CONFIG.customFields.squad] = { value: squad };
     return this.createIssue(fields);
   },
 
-  async createLinkedIssue(issueType, title, description, epicKey) {
+  async createLinkedIssue(issueType, title, description, epicKey, squad) {
     const fields = {
       project: { key: CONFIG.jiraProject },
       summary: title,
-      issuetype: { name: issueType }
+      issuetype: { name: issueType },
+      [CONFIG.customFields.squad]: this._squadField(squad)
     };
     if (description) fields.description = description;
+    // Epic linking on the DOMO (company-managed) project uses the Epic Link
+    // custom field (customfield_10014), not the `parent` field — `parent`
+    // is not exposed on the create screen.
     if (epicKey) fields[CONFIG.customFields.epicLink] = epicKey;
     return this.createIssue(fields);
   },
@@ -486,20 +504,11 @@ const JiraService = {
     const fields = {
       project: { key: CONFIG.jiraProject },
       summary: ticket.title,
-      issuetype: { name: ticket.issueType }
+      issuetype: { name: ticket.issueType },
+      [CONFIG.customFields.squad]: this._squadField(ticket.squad)
     };
     if (ticket.description) fields.description = ticket.description;
     if (epicKey) fields[CONFIG.customFields.epicLink] = epicKey;
-    if (ticket.squad) {
-      try {
-        fields[CONFIG.customFields.squad] = { value: ticket.squad };
-        return await this.createIssue(fields);
-      } catch (e) {
-        // Retry without squad if rejected
-        delete fields[CONFIG.customFields.squad];
-        return this.createIssue(fields);
-      }
-    }
     return this.createIssue(fields);
   },
 
@@ -528,7 +537,9 @@ const JiraService = {
     }
     jql += ' ORDER BY updated DESC';
     const encoded = encodeURIComponent(jql);
-    return this._call('GET', '/search?jql=' + encoded + '&fields=summary,description,status,issuetype&maxResults=10');
+    // Cloud deprecated GET /search; use the enhanced /search/jql endpoint.
+    // Response still exposes `.issues` (paginated via nextPageToken).
+    return this._call('GET', '/search/jql?jql=' + encoded + '&fields=summary,description,status,issuetype&maxResults=10');
   }
 };
 
@@ -1556,22 +1567,10 @@ function openFeatureModal(featureId, projectId, opts) {
               fields[CONFIG.customFields.epicName] = name;
             }
 
-            // Try with squad first, retry without if it fails
+            // Squad is required on Cloud; normalize + default via the helper.
             const itemSquad = modal.querySelector('#feat-squad').value;
-            let result;
-            try {
-              if (itemSquad) fields[CONFIG.customFields.squad] = { value: itemSquad };
-              result = await JiraService.createIssue(fields);
-            } catch (squadErr) {
-              // Squad value may not match Jira — retry without it
-              if (itemSquad) {
-                delete fields[CONFIG.customFields.squad];
-                result = await JiraService.createIssue(fields);
-                Toast.warning('Jira issue created but squad "' + itemSquad + '" was rejected');
-              } else {
-                throw squadErr;
-              }
-            }
+            fields[CONFIG.customFields.squad] = JiraService._squadField(itemSquad);
+            const result = await JiraService.createIssue(fields);
             doc.jiraKey = result.key;
             Toast.success('Jira issue created: ' + result.key);
           } catch (e) {
@@ -1651,7 +1650,7 @@ function openFeatureModal(featureId, projectId, opts) {
                 const fields = {};
                 if (nameChanged) fields.summary = name;
                 if (descChanged || mockChanged) fields.description = jiraDesc;
-                if (assigneeChanged) fields.assignee = newAssignee ? { name: newAssignee } : null;
+                if (assigneeChanged) fields.assignee = JiraService.assigneeField(newAssignee);
                 // Only push epic-link change if the new parent has a Jira
                 // key (or we're clearing it); otherwise the local move
                 // happens but Jira keeps its existing link.
@@ -2379,7 +2378,7 @@ async function updateFeatureAssignee(featureId, newAssignee) {
   if (doc.jiraKey) {
     try {
       await JiraService.updateIssueFields(doc.jiraKey, {
-        assignee: newAssignee ? { name: newAssignee } : null
+        assignee: JiraService.assigneeField(newAssignee)
       });
       Toast.success('Assignee synced to Jira');
     } catch (e) {
