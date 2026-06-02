@@ -131,12 +131,12 @@ across platforms.
 | Layer | Technology |
 |-------|-----------|
 | Platform | Domo Custom App (Pro-Code) |
-| Frontend | React (JSX) |
+| Frontend | Vanilla JavaScript (single file) |
 | Data Storage | Domo AppDB |
-| External Integration | Jira REST API v2 via Domo Proxy |
-| Jira Instance | https://onjira.domo.com |
+| External Integration | Jira REST API v2 via Domo Code Engine proxy |
+| Jira Instance | https://domoinc.atlassian.net (Atlassian Cloud, since Mar 2026) |
 | Jira Project | DOMO |
-| Auth Method | Jira API Token (Bearer) |
+| Auth Method | Atlassian API token, HTTP Basic (`base64(email:apiToken)`) |
 | Deployment | Domo CLI |
 | Version Control | GitHub |
 | AI Assistance | Claude (development only) |
@@ -182,10 +182,11 @@ across platforms.
 ## 9.5 Jira Field Mappings
 
 ### Custom Fields
-| Field | ID | Used For |
+| Field | ID (Cloud) | Used For |
 |-------|-----|----------|
-| Epic Name | `customfield_11001` | Required when creating an Epic |
-| Epic Link | `customfield_11000` | Links Story/Bug/Improvement/Mock to an Epic |
+| Epic Name | `customfield_10011` | Required when creating an Epic (was `customfield_11001` on-prem) |
+| Epic Link | `customfield_10014` | Links Story/Bug/Improvement/Mock to an Epic (was `customfield_11000` on-prem) |
+| Squad | `customfield_10071` | **Required on create** (was `customfield_11200` on-prem) |
 
 ### Issue Type Mapping
 | App Concept | Jira Issue Type |
